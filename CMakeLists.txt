@@ -47,12 +47,17 @@ pico_enable_stdio_usb(hmi_pico_stp 1)
 
 # Add the standard library to the build
 target_link_libraries(hmi_pico_stp
-        pico_stdlib)
+    pico_stdlib       
+    hardware_clocks
+    ili9486_drivers
+)
 
 # Add the standard include files to the build
 target_include_directories(hmi_pico_stp PRIVATE
   ${CMAKE_CURRENT_LIST_DIR}/include
 )
+
+add_subdirectory(lib/ili9486_drivers)
 
 pico_add_extra_outputs(hmi_pico_stp)
 
