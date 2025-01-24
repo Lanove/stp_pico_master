@@ -15,6 +15,7 @@ target_link_libraries(ili9486_drivers PRIVATE
     pico_stdlib
     hardware_adc
     hardware_irq
+    hardware_dma
     )
 # Following two libraries must be PUBLIC, idk
 target_link_libraries(ili9486_drivers PUBLIC 

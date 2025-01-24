@@ -80,7 +80,8 @@ void ili9486_drivers::init() {
 }
 void ili9486_drivers::setRotation(Rotations rotation) {
   _rot = rotation;
-  uint8_t madctl = MASK_BGR; // BGR filter is always enabled
+  uint8_t madctl = 0; // BGR filter is always enabled
+
   bool swap_dims = false;
 
   switch (_rot) {
@@ -112,9 +113,6 @@ void ili9486_drivers::setRotation(Rotations rotation) {
   // Update dimensions based on orientation
   _width = swap_dims ? panel_height : panel_width;
   _height = swap_dims ? panel_width : panel_height;
-
-  printf("Screen width: %d\n", _width);
-  printf("Screen height: %d\n", _height);
 }
 
 void ili9486_drivers::writeCommand(uint8_t cmd) {
@@ -177,19 +175,42 @@ void ili9486_drivers::dmaInit(void (*onComplete_cb)(void)) {
   dma_tx_config = dma_channel_get_default_config(dma_tx_channel);
   channel_config_set_transfer_data_size(&dma_tx_config, DMA_SIZE_8);
   channel_config_set_dreq(&dma_tx_config, spi_get_dreq(spi, true));
+  uint irq_num = (dma_tx_channel <= 3) ? DMA_IRQ_0 : DMA_IRQ_1;
+  static int captured_dma_tx_channel = dma_tx_channel; // Capture the channel
+  static void (*user_callback)(void) = onComplete_cb;
+  irq_handler_t wrapper = [](void) {
+    if (dma_channel_get_irq0_status(captured_dma_tx_channel)) {
+      dma_channel_acknowledge_irq0(captured_dma_tx_channel);
+      if (user_callback){
+        user_callback();
+      }
+    }
+  };
+
+  irq_remove_handler(irq_num, wrapper);
+  irq_set_exclusive_handler(irq_num, wrapper);
+
   dma_channel_set_irq0_enabled(dma_tx_channel, true);
-  irq_set_exclusive_handler(DMA_IRQ_0, onComplete_cb);
-  irq_set_enabled(DMA_IRQ_0, true);
+  irq_set_enabled(irq_num, true);
+
   dma_used = true;
 }
 
-void ili9486_drivers::pushColorsDMA(uint16_t *colors, uint32_t len) {
+void ili9486_drivers::pushColorsDMA(uint32_t *colors, uint32_t len) {
   if (!dma_used)
     return;
-  startTransaction();
   gpio_put(pin_dc, 1);
-  dma_channel_configure(dma_tx_channel, &dma_tx_config, &spi_get_hw(spi)->dr,
-                        reinterpret_cast<uint8_t *>(colors), len * 2, true);
+
+  // Configure DMA transfer
+  uint8_t *src = reinterpret_cast<uint8_t *>(colors);
+  const uint32_t transfer_size = len * 3; // 3 bytes per pixel
+
+  dma_channel_configure(dma_tx_channel, &dma_tx_config,
+                        &spi_get_hw(spi)->dr, // SPI data register (destination)
+                        src,                  // Source buffer
+                        transfer_size,        // Transfer size in bytes
+                        true                  // Start immediately
+  );
 }
 
 uint32_t ili9486_drivers::create888Color(uint8_t r, uint8_t g, uint8_t b) {

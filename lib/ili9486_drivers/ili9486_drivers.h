@@ -7,6 +7,7 @@
 
 #include "hardware/dma.h"
 #include "hardware/spi.h"
+#include "hardware/irq.h"
 #include "ili9486_commands.h"
 #include "pico/stdlib.h"
 #include <stdio.h>
@@ -33,6 +34,8 @@ public:
   void pushColors(uint32_t *color, uint32_t len);
   void pushColorsDMA(uint32_t *colors, uint32_t len);
   void dmaInit(void (*onComplete_cb)(void));
+  bool is_dma_used() { return dma_used; }
+
 
   // DMA control functions
   __force_inline bool dmaBusy() { return dma_channel_is_busy(dma_tx_channel); };

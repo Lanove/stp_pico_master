@@ -20,6 +20,8 @@ uint8_t tft_dc = 12;
 uint8_t tft_reset = 9;
 spi_inst_t *tft_spi = spi1;
 
+constexpr int processor_mhz = 125;
+
 ili9486_drivers tft(tft_spi, tft_cs, tft_dc, tft_reset, tft_tx, tft_rx, tft_sck,
                     62.5 * 1000 * 1000);
 
@@ -32,15 +34,15 @@ static uint32_t rp2040_tick_cb() {
 int main() {
   stdio_init_all();
   sleep_ms(2000);
-  if (!set_sys_clock_khz(250 * 1000, false))
-    printf("set system clock to %dMHz failed\n", 250);
+  if (!set_sys_clock_khz(processor_mhz * 1000, false))
+    printf("set system clock to %dMHz failed\n", processor_mhz);
   else
-    printf("system clock is now %dMHz\n", 250);
+    printf("system clock is now %dMHz\n", processor_mhz);
   clock_configure(clk_peri,
                   0, // No glitchless mux
                   CLOCKS_CLK_PERI_CTRL_AUXSRC_VALUE_CLK_SYS,
-                  250 * 1000 * 1000,  // 250 MHz
-                  250 * 1000 * 1000); // 250 MHz
+                  processor_mhz * 1000 * 1000,  // processor_mhz MHz
+                  processor_mhz * 1000 * 1000); // processor_mhz MHz
   tft.init();
   uint32_t clk_freq = clock_get_hz(clk_peri);
   printf("SPI1 source clock frequency: %u Hz\n", clk_freq);
@@ -59,11 +61,10 @@ int main() {
       NULL, &lv_tick_timer);
   tft.setRotation(LANDSCAPE);
   lvgl_display_init(tft);
-  // lvgl_app::app_entry();
+  lvgl_app::app_entry();
   // lv_tick_set_cb(rp2040_tick_cb);
   while (true) {
     lv_timer_handler();
-    printf("Haloo\n");
     sleep_ms(5);
   }
 }
