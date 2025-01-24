@@ -4,7 +4,10 @@
 #include "hardware/structs/pll.h"
 #include "hardware/structs/rosc.h"
 #include "ili9486_drivers.h"
+#include "lv_app.h"
+#include "lv_drivers.h"
 #include "pico/stdlib.h"
+#include "pico/time.h"
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -18,7 +21,13 @@ uint8_t tft_reset = 9;
 spi_inst_t *tft_spi = spi1;
 
 ili9486_drivers tft(tft_spi, tft_cs, tft_dc, tft_reset, tft_tx, tft_rx, tft_sck,
-                    125 * 1000 * 1000);
+                    62.5 * 1000 * 1000);
+
+static repeating_timer lv_tick_timer;
+
+static uint32_t rp2040_tick_cb() {
+  return to_ms_since_boot(get_absolute_time());
+}
 
 int main() {
   stdio_init_all();
@@ -41,21 +50,20 @@ int main() {
   int r = 0;
   int g = 0;
   int b = 0;
+  add_repeating_timer_ms(
+      5,
+      [](struct repeating_timer *t) -> bool {
+        lv_tick_inc(5);
+        return true;
+      },
+      NULL, &lv_tick_timer);
+  tft.setRotation(LANDSCAPE);
+  lvgl_display_init(tft);
+  // lvgl_app::app_entry();
+  // lv_tick_set_cb(rp2040_tick_cb);
   while (true) {
-    // checkID();
-    // printf("It's MyGO!!!!!\n");
-    absolute_time_t start_time = get_absolute_time();
-    tft.fillScreen(tft.create888Color(r, g, b));
-    absolute_time_t end_time = get_absolute_time();
-    int64_t time_taken = absolute_time_diff_us(start_time, end_time);
-    printf("Time taken for fillScreen: %lld us\n", time_taken);
-    tft.fillScreen(tft.create888Color(r, g, b));
-    r += rand() % 10;
-    g += rand() % 25;
-    b += rand() % 50;
-    r %= 255;
-    g %= 255;
-    b %= 255;
-    sleep_ms(100);
+    lv_timer_handler();
+    printf("Haloo\n");
+    sleep_ms(5);
   }
 }

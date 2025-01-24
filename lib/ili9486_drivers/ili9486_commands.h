@@ -93,16 +93,12 @@ static constexpr uint8_t CMD_SPIReadCommandSetting = 0xFB;
 static constexpr uint8_t CMD_Delay = 0x80;
 static constexpr uint8_t initCommands[] = {
     // Positive Gamma Control (E0)
-    CMD_PositiveGammaControl, 15,
-    0x00, 0x03, 0x09, 0x08, 0x16, 0x0A,
-    0x3F, 0x78, 0x4C, 0x09, 0x0A, 0x08,
-    0x16, 0x1A, 0x0F,
+    CMD_PositiveGammaControl, 15, 0x00, 0x03, 0x09, 0x08, 0x16, 0x0A, 0x3F,
+    0x78, 0x4C, 0x09, 0x0A, 0x08, 0x16, 0x1A, 0x0F,
 
     // Negative Gamma Control (E1)
-    CMD_NegativeGammaControl, 15,
-    0x00, 0x16, 0x19, 0x03, 0x0F, 0x05,
-    0x32, 0x45, 0x46, 0x04, 0x0E, 0x0D,
-    0x35, 0x37, 0x0F,
+    CMD_NegativeGammaControl, 15, 0x00, 0x16, 0x19, 0x03, 0x0F, 0x05, 0x32,
+    0x45, 0x46, 0x04, 0x0E, 0x0D, 0x35, 0x37, 0x0F,
 
     // Power Control 1 (C0)
     CMD_PowerControl1, 2, 0x17, 0x15,
@@ -110,32 +106,25 @@ static constexpr uint8_t initCommands[] = {
     // Power Control 2 (C1)
     CMD_PowerControl2, 1, 0x41,
 
+    CMD_PowerControl3, 1, 0x44,
+
     // VCOM Control (C5)
     CMD_VCOMControl1, 3, 0x00, 0x12, 0x80,
 
     // Memory Access Control (36)
-    CMD_MemoryAccessControl, 1, 0x48,  // MX + BGR
+    CMD_MemoryAccessControl, 1, 0x48, // MX + BGR
 
     // Pixel Format (3A) - Changed to 0x66 from CSV
     CMD_InterfacePixelFormat, 1, 0x66,
 
     // Interface Mode Control (B0)
-    CMD_InterfaceModeControl, 1, 0x00,
+    // CMD_InterfaceModeControl, 1, 0x00,
 
     // Frame Rate Control (B1)
-    CMD_FrameRateControl_NormalMode, 1, 0xA0,
+    // CMD_FrameRateControl_NormalMode, 2, 0xF0, 0x15,
 
     // Display Inversion Control (B4)
-    CMD_DisplayInversionControl, 1, 0x02,
-
-    // Display Function Control (B6)
-    CMD_DisplayFunctionControl, 3, 0x02, 0x02, 0x3B,
-
-    // Entry Mode Set (B7)
-    CMD_EntryModeSet, 1, 0xC6,
-
-    // Adjust Control 3 (F7) - Added from CSV
-    0xF7, 4, 0xA9, 0x51, 0x2C, 0x82,
+    CMD_DisplayInversionControl, 1, 0x00,
 
     // Sleep Out (11) with delay
     CMD_SleepOut, CMD_Delay, 120,
@@ -143,6 +132,6 @@ static constexpr uint8_t initCommands[] = {
     // Display On (29) with delay
     CMD_DisplayOn, CMD_Delay, 25,
 
-    0xFF, 0xFF  // End marker
+    0xFF, 0xFF // End marker
 };
 #endif

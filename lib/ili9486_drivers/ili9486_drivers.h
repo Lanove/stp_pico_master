@@ -27,8 +27,7 @@ public:
   void setWindow(int32_t x0, int32_t y0, int32_t x1, int32_t y1);
   uint16_t create565Color(uint8_t r, uint8_t g, uint8_t b);
   uint32_t create888Color(uint8_t r, uint8_t g, uint8_t b);
-  void fillScreen(uint16_t color);
-  void pushColors(uint16_t *color, uint32_t len);
+  uint32_t create666Color(uint8_t r, uint8_t g, uint8_t b);
   void pushColorsDMA(uint16_t *colors, uint32_t len);
   void fillScreen(uint32_t color);
   void pushColors(uint32_t *color, uint32_t len);
@@ -53,7 +52,6 @@ public:
 
   void writeCommand(uint8_t cmd);
   void writeData(uint8_t data);
-  void pushBlock(uint16_t color, uint32_t len);
   void pushBlock(uint32_t color, uint32_t len);
 
 

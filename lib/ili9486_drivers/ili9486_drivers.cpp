@@ -148,17 +148,6 @@ void ili9486_drivers::setWindow(int32_t x0, int32_t y0, int32_t x1,
   writeCommand(CMD_MemoryWrite);
 }
 
-void ili9486_drivers::pushBlock(uint16_t color, uint32_t len) {
-  uint8_t color_buf[2] = {static_cast<uint8_t>(color >> 8),
-                          static_cast<uint8_t>(color & 0xFF)};
-  startTransaction();
-  gpio_put(pin_dc, 1);
-  for (uint32_t i = 0; i < len; i++) {
-    spi_write_blocking(spi, color_buf, 2);
-  }
-  endTransaction();
-}
-
 void ili9486_drivers::pushBlock(uint32_t color, uint32_t len) {
   uint8_t color_buf[3] = {static_cast<uint8_t>(color >> 16),
                           static_cast<uint8_t>(color >> 8),
@@ -171,21 +160,9 @@ void ili9486_drivers::pushBlock(uint32_t color, uint32_t len) {
   endTransaction();
 }
 
-void ili9486_drivers::fillScreen(uint16_t color) {
-  setAddressWindow(0, 0, _width, _height);
-  pushBlock(color, _width * _height);
-}
-
 void ili9486_drivers::fillScreen(uint32_t color) {
   setAddressWindow(0, 0, _width, _height);
   pushBlock(color, _width * _height);
-}
-
-void ili9486_drivers::pushColors(uint16_t *color, uint32_t len) {
-  startTransaction();
-  gpio_put(pin_dc, 1);
-  spi_write_blocking(spi, reinterpret_cast<uint8_t *>(color), len * 2);
-  endTransaction();
 }
 
 void ili9486_drivers::pushColors(uint32_t *color, uint32_t len) {
@@ -215,12 +192,12 @@ void ili9486_drivers::pushColorsDMA(uint16_t *colors, uint32_t len) {
                         reinterpret_cast<uint8_t *>(colors), len * 2, true);
 }
 
-uint16_t ili9486_drivers::create565Color(uint8_t r, uint8_t g, uint8_t b) {
-  return ((r & 0x1F) << 11) | ((g & 0x3F) << 5) | (b & 0x1F);
-}
-
 uint32_t ili9486_drivers::create888Color(uint8_t r, uint8_t g, uint8_t b) {
   return (r << 16) | (g << 8) | b;
+}
+
+uint32_t ili9486_drivers::create666Color(uint8_t r, uint8_t g, uint8_t b) {
+  return ((r & 0x3F) << 18) | ((g & 0x3F) << 10) | ((b & 0x3F) << 2);
 }
 
 void ili9486_drivers::setAddressWindow(int32_t x, int32_t y, int32_t w,
