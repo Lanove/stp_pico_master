@@ -7,5 +7,5 @@
 #include "xpt2046.h"
 
 extern void init_display();
-void lvgl_display_init(ili9486_drivers& driver, XPT2046 &touch);
+void lvgl_display_init();
 #endif
