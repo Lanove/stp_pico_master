@@ -8,6 +8,7 @@
 #include "lv_drivers.h"
 #include "pico/stdlib.h"
 #include "pico/time.h"
+#include "xpt2046.h"
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -19,11 +20,20 @@ uint8_t tft_cs = 13;
 uint8_t tft_dc = 12;
 uint8_t tft_reset = 9;
 spi_inst_t *tft_spi = spi1;
+spi_inst_t *touch_spi = spi0;
+
+uint8_t T_CLK = 6;
+uint8_t T_CS = 5;
+uint8_t T_DIN = 3;
+uint8_t T_DO = 0;
+uint8_t T_IRQ = 1;
 
 constexpr int processor_mhz = 125;
 
 ili9486_drivers tft(tft_spi, tft_cs, tft_dc, tft_reset, tft_tx, tft_rx, tft_sck,
                     62.5 * 1000 * 1000);
+
+XPT2046 touch(touch_spi, T_DIN, T_DO, T_CLK, T_CS, T_IRQ);
 
 static repeating_timer lv_tick_timer;
 
@@ -60,7 +70,8 @@ int main() {
       },
       NULL, &lv_tick_timer);
   tft.setRotation(LANDSCAPE);
-  lvgl_display_init(tft);
+  touch.begin(LANDSCAPE);
+  lvgl_display_init(tft, touch);
   lvgl_app::app_entry();
   // lv_tick_set_cb(rp2040_tick_cb);
   while (true) {

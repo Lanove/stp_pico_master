@@ -78,6 +78,15 @@ void ili9486_drivers::init() {
   setRotation(LANDSCAPE);
   fillScreen((uint32_t)0); // Clear screen
 }
+
+void ili9486_drivers::drawPixel(int16_t x, int16_t y, uint32_t color) {
+  if ((x < 0) || (x >= _width) || (y < 0) || (y >= _height))
+    return;
+
+  setAddressWindow(x, y, x, y);
+  pushBlock(color, 1);
+}
+
 void ili9486_drivers::setRotation(Rotations rotation) {
   _rot = rotation;
   uint8_t madctl = 0; // BGR filter is always enabled
@@ -181,7 +190,7 @@ void ili9486_drivers::dmaInit(void (*onComplete_cb)(void)) {
   irq_handler_t wrapper = [](void) {
     if (dma_channel_get_irq0_status(captured_dma_tx_channel)) {
       dma_channel_acknowledge_irq0(captured_dma_tx_channel);
-      if (user_callback){
+      if (user_callback) {
         user_callback();
       }
     }
@@ -214,11 +223,11 @@ void ili9486_drivers::pushColorsDMA(uint32_t *colors, uint32_t len) {
 }
 
 uint32_t ili9486_drivers::create888Color(uint8_t r, uint8_t g, uint8_t b) {
-  return (r << 16) | (g << 8) | b;
+  return (b << 16) | (g << 8) | r;
 }
 
 uint32_t ili9486_drivers::create666Color(uint8_t r, uint8_t g, uint8_t b) {
-  return ((r & 0x3F) << 18) | ((g & 0x3F) << 10) | ((b & 0x3F) << 2);
+  return ((b & 0x3F) << 18) | ((g & 0x3F) << 10) | ((r & 0x3F) << 2);
 }
 
 void ili9486_drivers::setAddressWindow(int32_t x, int32_t y, int32_t w,

@@ -1,5 +1,4 @@
-#include "ili9486_drivers.h"
-#include "lvgl.h"
+#include "lv_drivers.h"
 
 // Display buffer configuration
 #define DISP_HOR_RES 480
@@ -10,6 +9,7 @@
 LV_ATTRIBUTE_MEM_ALIGN
 static uint8_t disp_buf[DISP_BUF_SIZE * BYTE_PER_PIXEL];
 static ili9486_drivers *tft_driver = nullptr;
+static XPT2046 *touch_driver = nullptr;
 lv_display_t *disp;
 // Flush callback for LVGL
 
@@ -23,8 +23,22 @@ static void disp_flush(lv_display_t *dispf, const lv_area_t *area,
   tft_driver->pushColorsDMA(reinterpret_cast<uint32_t *>(px_map), num_pixels);
 }
 
-void lvgl_display_init(ili9486_drivers &driver) {
+static void touch_cb(lv_indev_t *indev, lv_indev_data_t *data) {
+  if(touch_driver == nullptr) return;
+  if (touch_driver->isTouched()) {
+    uint16_t x, y;
+    touch_driver->getTouch(x, y);
+    data->point.x = x;
+    data->point.y = y;
+    data->state = LV_INDEV_STATE_PRESSED;
+  } else {
+    data->state = LV_INDEV_STATE_RELEASED;
+  }
+}
+
+void lvgl_display_init(ili9486_drivers &driver, XPT2046 &touch) {
   tft_driver = &driver;
+  touch_driver = &touch;
 
   tft_driver->dmaInit([]() {
     lv_display_flush_ready(disp);
@@ -44,4 +58,11 @@ void lvgl_display_init(ili9486_drivers &driver) {
   lv_display_set_flush_cb(disp, disp_flush);
   lv_display_set_color_format(disp, LV_COLOR_FORMAT_RGB888);
   lv_display_flush_ready(disp);
+
+  // Initialize LVGL input device
+  lv_indev_t *indev =
+      lv_indev_create(); /* Create input device connected to Default Display. */
+  lv_indev_set_type(
+      indev, LV_INDEV_TYPE_POINTER); /* Touch pad is a pointer-like device. */
+  lv_indev_set_read_cb(indev, touch_cb); /* Set driver function. */
 }

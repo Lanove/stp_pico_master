@@ -4,7 +4,8 @@
 #include "lvgl.h"
 #include "ili9486_drivers.h"
 #include "hardware/clocks.h"
+#include "xpt2046.h"
 
 extern void init_display();
-void lvgl_display_init(ili9486_drivers& driver);
+void lvgl_display_init(ili9486_drivers& driver, XPT2046 &touch);
 #endif

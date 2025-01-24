@@ -9,6 +9,7 @@
 #include "hardware/spi.h"
 #include "hardware/irq.h"
 #include "ili9486_commands.h"
+
 #include "pico/stdlib.h"
 #include <stdio.h>
 
@@ -33,6 +34,7 @@ public:
   void fillScreen(uint32_t color);
   void pushColors(uint32_t *color, uint32_t len);
   void pushColorsDMA(uint32_t *colors, uint32_t len);
+  void drawPixel(int16_t x, int16_t y, uint32_t color);
   void dmaInit(void (*onComplete_cb)(void));
   bool is_dma_used() { return dma_used; }
 

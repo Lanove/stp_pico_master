@@ -53,6 +53,7 @@ target_link_libraries(hmi_pico_stp
     pico_stdlib       
     hardware_clocks
     ili9486_drivers
+    xpt2046
     lvgl
     # lvgl::lvgl
 )
@@ -66,6 +67,7 @@ target_include_directories(hmi_pico_stp PRIVATE
 message("LV_CONF_PATH: ${LV_CONF_PATH}")
 add_subdirectory(lib/ili9486_drivers)
 add_subdirectory(lib/lvgl)
+add_subdirectory(lib/xpt2046)
 
 pico_add_extra_outputs(hmi_pico_stp)
 
