@@ -8,23 +8,8 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(LV_CONF_PATH
     ${CMAKE_CURRENT_SOURCE_DIR}/include/lv_conf.h
     CACHE STRING "" FORCE)
+set(PICO_SDK_PATH "/home/kohigashi/git/pico-sdk")
 
-# Initialise pico_sdk from installed location
-# (note this can come from environment, CMake cache etc)
-
-# == DO NOT EDIT THE FOLLOWING LINES for the Raspberry Pi Pico VS Code Extension to work ==
-if(WIN32)
-    set(USERHOME $ENV{USERPROFILE})
-else()
-    set(USERHOME $ENV{HOME})
-endif()
-set(sdkVersion 2.1.0)
-set(toolchainVersion 13_3_Rel1)
-set(picotoolVersion 2.1.0)
-set(picoVscode ${USERHOME}/.pico-sdk/cmake/pico-vscode.cmake)
-if (EXISTS ${picoVscode})
-    include(${picoVscode})
-endif()
 # ====================================================================================
 set(PICO_BOARD pico CACHE STRING "Board type")
 
@@ -53,6 +38,7 @@ target_link_libraries(hmi_pico_stp
     pico_stdlib       
     hardware_clocks
     ili9486_drivers
+    ClickEncoder
     xpt2046
     lvgl
     # lvgl::lvgl
@@ -68,6 +54,7 @@ message("LV_CONF_PATH: ${LV_CONF_PATH}")
 add_subdirectory(lib/ili9486_drivers)
 add_subdirectory(lib/lvgl)
 add_subdirectory(lib/xpt2046)
+add_subdirectory(lib/ClickEncoder)
 
 pico_add_extra_outputs(hmi_pico_stp)
 

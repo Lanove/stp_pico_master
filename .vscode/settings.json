@@ -39,6 +39,13 @@
     "raspberry-pi-pico.cmakePath": "cmake",
     "raspberry-pi-pico.ninjaPath": "ninja",
     "files.associations": {
-        "*.tcc": "cpp"
+        "*.tcc": "cpp",
+        "*.ipp": "cpp",
+        "boundingbox": "cpp",
+        "boundingsphere": "cpp",
+        "timer": "cpp",
+        "valuemap": "cpp",
+        "valueobject": "cpp",
+        "valuestack": "cpp"
     }
 }
