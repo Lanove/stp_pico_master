@@ -14,7 +14,7 @@ typedef enum {
   WRITE_SINGLE_REGISTER = 0x06,
   WRITE_MULTIPLE_COILS = 0x0F,
   WRITE_MULTIPLE_REGISTERS = 0x10
-} ModbusFunctionCode;
+} modbus_function_code_t;
 
 class ModbusMaster {
 public:
@@ -45,11 +45,15 @@ public:
     uart_set_fifo_enabled(uart_id, false);
   }
 
-  void send_request(uint8_t slave_addr, ModbusFunctionCode function, uint16_t reg_addr, uint16_t reg_count);
+  void send_message(uint8_t slave_addr, modbus_function_code_t function,
+                    uint16_t reg_addr, uint16_t reg_count, uint pre_tx_delay,
+                    uint post_tx_delay);
   bool receive_response(uint8_t *resp, uint8_t len, uint32_t timeout_ms);
   uint16_t modbus_crc(uint8_t *buf, int len);
+  bool validate_crc(uint8_t *buf, int len, uint16_t crc);
 
 private:
+  uint8_t frame[256];
   uint8_t de_re_pin;
   uint8_t rx_pin;
   uint8_t tx_pin;
