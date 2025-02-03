@@ -4,6 +4,7 @@
 #include "lvgl.h"
 #include "src/misc/lv_color.h"
 #include "stdint.h"
+#include "stdio.h"
 
 LV_IMG_DECLARE(STP_SPLASH);
 #define DISPLAY_SIZE_Y 320
@@ -57,12 +58,23 @@ struct Top_Grid_Labels
     lv_obj_t * wifi_label;
 };
 
+struct Bottom_Grid_Buttons
+{
+    lv_obj_t * setpoint;
+    lv_obj_t * timer;
+    lv_obj_t * cutoff_v;
+    lv_obj_t * cutoff_e;
+    lv_obj_t * settings;
+};
+
 extern struct Highlightable_Containers highlightable_containers;
 extern struct Big_Labels big_labels;
 extern struct Top_Grid_Labels top_grid_labels;
+extern struct Bottom_Grid_Buttons bottom_grid_buttons;
 extern const char * bottom_home_btns[];
 extern lv_obj_t * scr_home;
 
+static void button_event_handler(lv_event_t * e);
 void splash_screen(uint32_t delay);
 void settings_screen(uint32_t delay);
 void app_entry();

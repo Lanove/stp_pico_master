@@ -1,5 +1,4 @@
 #include "lv_app.h"
-#include "stdint.h"
 
 namespace lvgl_app {
 
@@ -10,6 +9,7 @@ lv_obj_t *scr_home;
 struct Highlightable_Containers highlightable_containers;
 struct Big_Labels big_labels;
 struct Top_Grid_Labels top_grid_labels;
+struct Bottom_Grid_Buttons bottom_grid_buttons;
 
 void app_entry() {
   splash_screen(0);
@@ -506,6 +506,47 @@ void home_screen(uint32_t delay) {
     lv_label_set_text_fmt(label, "%s", bottom_home_btns[i]);
     lv_obj_center(label); // Center the label on the button
     lv_obj_set_style_text_font(label, &lv_font_montserrat_14, 0);
+
+    // Add the button to the button array
+    if (i == 0) {
+      bottom_grid_buttons.setpoint = btn;
+    } else if (i == 1) {
+      bottom_grid_buttons.timer = btn;
+    } else if (i == 2) {
+      bottom_grid_buttons.cutoff_v = btn;
+    } else if (i == 3) {
+      bottom_grid_buttons.cutoff_e = btn;
+    } else if (i == 4) {
+      bottom_grid_buttons.settings = btn;
+    }
+
+    // Add button event handler
+    lv_obj_add_event_cb(btn, button_event_handler, LV_EVENT_ALL, NULL);
   }
 }
+
+static void button_event_handler(lv_event_t * e)
+{
+    lv_event_code_t code = lv_event_get_code(e);
+    lv_obj_t * obj = (lv_obj_t*)lv_event_get_target(e);
+
+    if(code == LV_EVENT_CLICKED) {
+        if(obj == bottom_grid_buttons.setpoint) {
+            printf("Setpoint clicked");
+        }
+        else if(obj == bottom_grid_buttons.timer) {
+            printf("Timer clicked");
+        }
+        else if(obj == bottom_grid_buttons.cutoff_v) {
+            printf("Cut-off V clicked");
+        }
+        else if(obj == bottom_grid_buttons.cutoff_e) {
+            printf("Cut-off E clicked");
+        }
+        else if(obj == bottom_grid_buttons.settings) {
+            printf("Settings clicked");
+        }
+    }
+}
+
 } // namespace lvgl_app

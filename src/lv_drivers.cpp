@@ -97,7 +97,6 @@ static void touch_cb(lv_indev_t *indev, lv_indev_data_t *data) {
     data->point.x = x;
     data->point.y = y;
     data->state = LV_INDEV_STATE_PRESSED;
-    printf("Touch: %d, %d\n", x, y);
   } else {
     data->state = LV_INDEV_STATE_RELEASED;
   }
