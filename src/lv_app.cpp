@@ -11,6 +11,9 @@ struct Big_Labels big_labels;
 struct Top_Grid_Labels top_grid_labels;
 struct Bottom_Grid_Buttons bottom_grid_buttons;
 
+Setting_Highlighted_Container setting_highlight;
+Source_Highlighted_Container source_highlight;
+
 void app_entry() {
   splash_screen(0);
 
@@ -231,6 +234,8 @@ void home_screen(uint32_t delay) {
         create_row_container(row_container, 3, [](lv_obj_t *row_container) {
           lv_obj_set_style_bg_color(row_container,
                                     lv_palette_main(LV_PALETTE_BLUE), 0);
+          lv_obj_set_style_bg_opa(row_container, LV_OPA_TRANSP, 0);
+
           lv_obj_set_style_radius(row_container, 0, LV_PART_MAIN);
           lv_obj_set_size(row_container, LV_PCT(100), LV_PCT(100));
           lv_obj_set_flex_align(row_container, LV_FLEX_ALIGN_CENTER,
@@ -261,8 +266,10 @@ void home_screen(uint32_t delay) {
     lv_obj_set_flex_grow(source_label, 2);
 
     create_row_container(row_container, 1, [](lv_obj_t *row_container) {
-      // lv_obj_set_style_bg_color(row_container,
-      // lv_palette_main(LV_PALETTE_BLUE), 0);
+      lv_obj_set_style_bg_color(row_container, lv_palette_main(LV_PALETTE_BLUE),
+                                0);
+      lv_obj_set_style_bg_opa(row_container, LV_OPA_TRANSP, 0);
+
       lv_obj_set_style_radius(row_container, 0, LV_PART_MAIN);
       lv_obj_set_size(row_container, LV_PCT(100), LV_PCT(100));
       lv_obj_set_flex_align(row_container, LV_FLEX_ALIGN_CENTER,
@@ -277,6 +284,8 @@ void home_screen(uint32_t delay) {
     create_row_container(row_container, 1, [](lv_obj_t *row_container) {
       lv_obj_set_style_bg_color(row_container, lv_palette_main(LV_PALETTE_BLUE),
                                 0);
+      lv_obj_set_style_bg_opa(row_container, LV_OPA_TRANSP, 0);
+
       lv_obj_set_style_radius(row_container, 0, LV_PART_MAIN);
       lv_obj_set_size(row_container, LV_PCT(100), LV_PCT(100));
       lv_obj_set_flex_align(row_container, LV_FLEX_ALIGN_CENTER,
@@ -289,8 +298,10 @@ void home_screen(uint32_t delay) {
       highlightable_containers.source_dc.label = small_label_right;
     });
     create_row_container(row_container, 1, [](lv_obj_t *row_container) {
-      // lv_obj_set_style_bg_color(row_container,
-      // lv_palette_main(LV_PALETTE_BLUE), 0);
+      lv_obj_set_style_bg_color(row_container, lv_palette_main(LV_PALETTE_BLUE),
+                                0);
+      lv_obj_set_style_bg_opa(row_container, LV_OPA_TRANSP, 0);
+
       lv_obj_set_style_radius(row_container, 0, LV_PART_MAIN);
       lv_obj_set_size(row_container, LV_PCT(100), LV_PCT(100));
       lv_obj_set_flex_align(row_container, LV_FLEX_ALIGN_CENTER,
@@ -379,6 +390,8 @@ void home_screen(uint32_t delay) {
     create_row_container(row_container, 2, [](lv_obj_t *row_container) {
       lv_obj_set_style_bg_color(row_container, lv_palette_main(LV_PALETTE_BLUE),
                                 0);
+      lv_obj_set_style_bg_opa(row_container, LV_OPA_TRANSP, 0);
+
       lv_obj_set_style_radius(row_container, 0, LV_PART_MAIN);
       lv_obj_set_size(row_container, LV_PCT(100), LV_PCT(100));
       lv_obj_set_flex_align(row_container, LV_FLEX_ALIGN_CENTER,
@@ -412,6 +425,8 @@ void home_screen(uint32_t delay) {
     create_row_container(row_container, 2, [](lv_obj_t *row_container) {
       lv_obj_set_style_bg_color(row_container, lv_palette_main(LV_PALETTE_BLUE),
                                 0);
+      lv_obj_set_style_bg_opa(row_container, LV_OPA_TRANSP, 0);
+
       lv_obj_set_style_radius(row_container, 0, LV_PART_MAIN);
       lv_obj_set_size(row_container, LV_PCT(100), LV_PCT(100));
       lv_obj_set_flex_align(row_container, LV_FLEX_ALIGN_CENTER,
@@ -445,6 +460,8 @@ void home_screen(uint32_t delay) {
     create_row_container(row_container, 3, [](lv_obj_t *row_container) {
       lv_obj_set_style_bg_color(row_container, lv_palette_main(LV_PALETTE_BLUE),
                                 0);
+      lv_obj_set_style_bg_opa(row_container, LV_OPA_TRANSP, 0);
+
       lv_obj_set_style_radius(row_container, 0, LV_PART_MAIN);
       lv_obj_set_size(row_container, LV_PCT(100), LV_PCT(100));
       lv_obj_set_flex_align(row_container, LV_FLEX_ALIGN_CENTER,
@@ -454,8 +471,8 @@ void home_screen(uint32_t delay) {
       lv_obj_t *small_label_right = lv_label_create(row_container);
       lv_label_set_text_fmt(small_label_right, "12:50:20");
       lv_obj_set_style_text_font(small_label_right, &lv_font_montserrat_16, 0);
-      highlightable_containers.cutoff_e.container = row_container;
-      highlightable_containers.cutoff_e.label = small_label_right;
+      highlightable_containers.timer.container = row_container;
+      highlightable_containers.timer.label = small_label_right;
     });
   });
 
@@ -523,30 +540,94 @@ void home_screen(uint32_t delay) {
     // Add button event handler
     lv_obj_add_event_cb(btn, button_event_handler, LV_EVENT_ALL, NULL);
   }
+  set_setting_highlight(Setpoint, true);
+  set_source_highlight(Source_Off, true);
 }
 
-static void button_event_handler(lv_event_t * e)
-{
-    lv_event_code_t code = lv_event_get_code(e);
-    lv_obj_t * obj = (lv_obj_t*)lv_event_get_target(e);
+static void button_event_handler(lv_event_t *e) {
+  lv_event_code_t code = lv_event_get_code(e);
+  lv_obj_t *obj = (lv_obj_t *)lv_event_get_target(e);
 
-    if(code == LV_EVENT_CLICKED) {
-        if(obj == bottom_grid_buttons.setpoint) {
-            printf("Setpoint clicked");
-        }
-        else if(obj == bottom_grid_buttons.timer) {
-            printf("Timer clicked");
-        }
-        else if(obj == bottom_grid_buttons.cutoff_v) {
-            printf("Cut-off V clicked");
-        }
-        else if(obj == bottom_grid_buttons.cutoff_e) {
-            printf("Cut-off E clicked");
-        }
-        else if(obj == bottom_grid_buttons.settings) {
-            printf("Settings clicked");
-        }
+  if (code == LV_EVENT_CLICKED) {
+    if (obj == bottom_grid_buttons.setpoint) {
+      set_setting_highlight(Setpoint, true);
+    } else if (obj == bottom_grid_buttons.timer) {
+      set_setting_highlight(Timer, true);
+    } else if (obj == bottom_grid_buttons.cutoff_v) {
+      set_setting_highlight(CutOff_V, true);
+    } else if (obj == bottom_grid_buttons.cutoff_e) {
+      set_setting_highlight(CutOff_E, true);
+    } else if (obj == bottom_grid_buttons.settings) {
+      printf("Settings clicked");
     }
+  }
+}
+
+void set_highlight_container(lv_obj_t *container, bool highlight) {
+  if (highlight) {
+    lv_obj_set_style_bg_opa(container, LV_OPA_COVER, 0);
+  } else {
+    lv_obj_set_style_bg_opa(container, LV_OPA_TRANSP, 0);
+  }
+}
+
+void set_setting_highlight(Setting_Highlighted_Container container,
+                           bool highlight) {
+  clear_setting_highlight();
+  setting_highlight = container;
+  switch (container) {
+  case Setpoint:
+    set_highlight_container(highlightable_containers.setpoint.container,
+                            highlight);
+    break;
+  case Timer:
+    set_highlight_container(highlightable_containers.timer.container,
+                            highlight);
+    break;
+  case CutOff_V:
+    set_highlight_container(highlightable_containers.cutoff_v.container,
+                            highlight);
+    break;
+  case CutOff_E:
+    set_highlight_container(highlightable_containers.cutoff_e.container,
+                            highlight);
+    break;
+  }
+}
+
+void set_source_highlight(Source_Highlighted_Container container,
+                          bool highlight) {
+  clear_source_highlight();
+  source_highlight = container;
+  switch (container) {
+  case Source_AC:
+    set_highlight_container(highlightable_containers.source_ac.container,
+                            highlight);
+    break;
+  case Source_DC:
+    set_highlight_container(highlightable_containers.source_dc.container,
+                            highlight);
+    break;
+  case Source_Off:
+    set_highlight_container(highlightable_containers.source_off.container,
+                            highlight);
+    break;
+  }
+}
+
+void clear_setting_highlight() {
+  set_highlight_container(highlightable_containers.setpoint.container, false);
+  set_highlight_container(highlightable_containers.cutoff_v.container, false);
+  set_highlight_container(highlightable_containers.cutoff_e.container, false);
+  set_highlight_container(highlightable_containers.timer.container, false);
+  //   set_highlight_container(highlightable_containers.start_stop.container,
+  //   false);
+}
+
+void clear_source_highlight() {
+  set_highlight_container(highlightable_containers.source_ac.container, false);
+  set_highlight_container(highlightable_containers.source_dc.container, false);
+  set_highlight_container(highlightable_containers.source_off.container, false);
 }
 
 } // namespace lvgl_app
