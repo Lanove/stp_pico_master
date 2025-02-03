@@ -7,7 +7,7 @@ XPT2046::XPT2046(spi_inst_t *spi, uint mosi, uint miso, uint sck, uint cs,
       irq_pin(irq) {}
 
 void XPT2046::begin(Rotations rotation) {
-  setRotation(rotation);
+  set_rotation(rotation);
   // Initialize CS pin
   gpio_init(cs_pin);
   gpio_set_dir(cs_pin, GPIO_OUT);
@@ -29,17 +29,17 @@ void XPT2046::begin(Rotations rotation) {
   spi_set_format(spi, 8, SPI_CPOL_0, SPI_CPHA_0, SPI_MSB_FIRST);
 }
 
-bool XPT2046::isTouched() {
+bool XPT2046::is_touched() {
   if (irq_pin) {
     return !gpio_get(irq_pin);
   }
   uint16_t x, y;
-  return getTouch(x, y);
+  return get_touch(x, y);
 }
 
-bool XPT2046::getTouch(uint16_t &x, uint16_t &y) {
+bool XPT2046::get_touch(uint16_t &x, uint16_t &y) {
   uint16_t raw_x, raw_y;
-  getMappedRaw(raw_x, raw_y);
+  get_mapped_raw(raw_x, raw_y);
   switch (rotation) {
   case PORTRAIT:
     x = raw_y;
@@ -61,39 +61,39 @@ bool XPT2046::getTouch(uint16_t &x, uint16_t &y) {
   return true;
 }
 
-uint16_t XPT2046::readData(uint8_t command) {
-  startTransaction();
+uint16_t XPT2046::read_data(uint8_t command) {
+  start_transaction();
 
   // Send command
-  spiWrite(command);
+  spi_write(command);
 
   // Read 16-bit response (12-bit data + 4 dummy bits)
-  uint16_t result = spiRead() << 5;
-  result |= spiRead() >> 3;
+  uint16_t result = spi_read() << 5;
+  result |= spi_read() >> 3;
 
-  endTransaction();
+  end_transaction();
   return result;
 }
 
-void XPT2046::startTransaction() {
+void XPT2046::start_transaction() {
   gpio_put(cs_pin, 0);
   sleep_us(1);
 }
 
-void XPT2046::endTransaction() {
+void XPT2046::end_transaction() {
   gpio_put(cs_pin, 1);
   sleep_us(1);
 }
 
-void XPT2046::spiWrite(uint8_t data) { spi_write_blocking(spi, &data, 1); }
+void XPT2046::spi_write(uint8_t data) { spi_write_blocking(spi, &data, 1); }
 
-uint16_t XPT2046::spiRead() {
+uint16_t XPT2046::spi_read() {
   uint8_t data;
   spi_read_blocking(spi, 0x00, &data, 1);
   return data;
 }
 
-void XPT2046::setCalibration(uint16_t xmin, uint16_t xmax, uint16_t ymin,
+void XPT2046::set_calibration(uint16_t xmin, uint16_t xmax, uint16_t ymin,
                              uint16_t ymax) {
   x_min = xmin;
   x_max = xmax;
@@ -128,18 +128,18 @@ void XPT2046::map(uint16_t x, uint16_t y, uint16_t &x_mapped,
     y_mapped = height - 1;
 }
 
-void XPT2046::getRaw(uint16_t &x, uint16_t &y) {
-  x = readData(0x90);
-  y = readData(0xD0);
+void XPT2046::get_raw(uint16_t &x, uint16_t &y) {
+  x = read_data(0x90);
+  y = read_data(0xD0);
 }
 
-void XPT2046::getMappedRaw(uint16_t &x, uint16_t &y) {
+void XPT2046::get_mapped_raw(uint16_t &x, uint16_t &y) {
   uint16_t raw_x, raw_y;
-  getRaw(raw_x, raw_y);
+  get_raw(raw_x, raw_y);
   map(raw_x, raw_y, x, y);
 }
 
-void XPT2046::setRotation(Rotations rotation) {
+void XPT2046::set_rotation(Rotations rotation) {
   this->rotation = rotation;
   bool swap_dims = false;
   switch (this->rotation) {

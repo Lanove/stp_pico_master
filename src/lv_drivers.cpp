@@ -91,9 +91,9 @@ static void disp_flush(lv_display_t *dispf, const lv_area_t *area,
 
 static void touch_cb(lv_indev_t *indev, lv_indev_data_t *data) {
 
-  if (touch.isTouched()) {
+  if (touch.is_touched()) {
     uint16_t x, y;
-    touch.getTouch(x, y);
+    touch.get_touch(x, y);
     data->point.x = x;
     data->point.y = y;
     data->state = LV_INDEV_STATE_PRESSED;
