@@ -43,7 +43,7 @@ target_link_libraries(hmi_pico_stp
     lvgl
     hardware_uart
     ModbusMaster
-    PZEM
+    rs485_slaves
 )
 
 # Add the standard include files to the build
@@ -58,7 +58,7 @@ add_subdirectory(lib/lvgl)
 add_subdirectory(lib/xpt2046)
 add_subdirectory(lib/ClickEncoder)
 add_subdirectory(lib/modbus_master)
-add_subdirectory(lib/pzem)
+add_subdirectory(lib/rs485_slaves)
 
 pico_add_extra_outputs(hmi_pico_stp)
 
