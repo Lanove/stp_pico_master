@@ -38,6 +38,7 @@ ModbusMaster mbm = ModbusMaster(modbus_de_re, modbus_rx, modbus_tx, modbus_uart,
 
 PZEM017 pzem017 = PZEM017(mbm, 0x02);
 PZEM017::measurement_t pzem017_measurement;
+
 void core1_entry();
 void core0_entry();
 
@@ -66,21 +67,10 @@ void core0_entry() {
   PZEM017::status_t status;
   while (true) {
     status = pzem017.request_all(pzem017_measurement);
-    if (status == PZEM017::No_Error) {
-      printf("Voltage: %.2f V\n", pzem017_measurement.voltage);
-      printf("Current: %.2f A\n", pzem017_measurement.current);
-      printf("Power: %.2f W\n", pzem017_measurement.power);
-      printf("Energy: %.2f Wh\n", pzem017_measurement.energy);
-      printf("High Voltage Alarm: %d\n",
-             pzem017_measurement.high_voltage_alarm);
-      printf("Low Voltage Alarm: %d\n", pzem017_measurement.low_voltage_alarm);
-    } else {
-      // printf("Error: %s\n", pzem017.error_to_string(status));
+    if (status != PZEM017::No_Error) {
+      printf("Error: %s\n", pzem017.error_to_string(status));
     }
     sleep_ms(1000);
-
-    // lv_timer_handler();
-    // sleep_ms(5);
   }
   return;
 }
@@ -105,9 +95,9 @@ void core1_entry() {
   while (true) {
     lv_timer_handler();
 
-    undivided_encoder_value += encoder.getValue();
+    undivided_encoder_value += encoder.get_value();
     encoder_value = undivided_encoder_value / 4;
-    ClickEncoder::Button b = encoder.getButton();
+    ClickEncoder::Button b = encoder.get_button();
     if (encoder_value != last_encoder_value) {
       printf("Encoder value: %d\n", encoder_value);
     }

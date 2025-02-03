@@ -33,34 +33,34 @@ public:
     
     void init();
     void service(void);
-    int16_t getValue(void);
+    int16_t get_value(void);
 
     // Button handling
-    Button getButton(void);
-    void setDoubleClickTime(uint16_t ms) { buttonDoubleClickTime = ms; }
-    void setHoldTime(uint16_t ms) { buttonHoldTime = ms; }
-    void setDoubleClickEnabled(bool d) { doubleClickEnabled = d; }
-    void setButtonHeldEnabled(bool d) { buttonHeldEnabled = d; }
+    Button get_button(void);
+    void set_double_click_time(uint16_t ms) { button_double_click_time = ms; }
+    void set_hold_time(uint16_t ms) { button_hold_time = ms; }
+    void set_double_click_enabled(bool d) { double_click_enabled = d; }
+    void set_button_held_enabled(bool d) { button_held_enabled = d; }
 
 private:
-    uint8_t pinA, pinB, pinBTN;
-    bool pinsActive;
+    uint8_t pin_a, pin_b, pin_btn;
+    bool pins_active;
     volatile int16_t delta;
     volatile int16_t last;
     volatile uint8_t steps;
     volatile uint16_t acceleration;
-    bool accelerationEnabled;
+    bool acceleration_enabled;
 
     // Button state
     volatile Button button;
-    bool doubleClickEnabled = true;
-    bool buttonHeldEnabled = true;
-    uint16_t buttonHoldTime = BTN_HOLDTIME;
-    uint16_t buttonDoubleClickTime = BTN_DOUBLECLICKTIME;
-    absolute_time_t lastButtonCheck = nil_time;
-    uint32_t keyDownTicks = 0;
-    uint32_t doubleClickTicks = 0;
+    bool double_click_enabled = true;
+    bool button_held_enabled = true;
+    uint16_t button_hold_time = BTN_HOLDTIME;
+    uint16_t button_double_click_time = BTN_DOUBLECLICKTIME;
+    absolute_time_t last_button_check = nil_time;
+    uint32_t keydown_ticks = 0;
+    uint32_t doubleclick_ticks = 0;
 
-    bool getPinState();
-    static const int8_t encoderTable[16];
+    bool get_pin_state();
+    static const int8_t encoder_table[16];
 };

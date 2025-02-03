@@ -4,46 +4,46 @@
 #define ENC_ACCEL_INC 200
 #define ENC_ACCEL_DEC 5
 
-const int8_t ClickEncoder::encoderTable[16] = {0, 0, -1, 0, 0, 0,  0, 1,
+const int8_t ClickEncoder::encoder_table[16] = {0, 0, -1, 0, 0, 0,  0, 1,
                                                1, 0, 0,  0, 0, -1, 0, 0};
 
 ClickEncoder::ClickEncoder(uint8_t A, uint8_t B, uint8_t BTN,
                            uint8_t stepsPerNotch, bool active)
-    : pinA(A), pinB(B), pinBTN(BTN), pinsActive(active), delta(0), last(0),
-      steps(stepsPerNotch), acceleration(0), accelerationEnabled(false),
+    : pin_a(A), pin_b(B), pin_btn(BTN), pins_active(active), delta(0), last(0),
+      steps(stepsPerNotch), acceleration(0), acceleration_enabled(false),
       button(Open) {}
 
 void ClickEncoder::init() {
 
-  if (pinA != 0xFF) {
-    gpio_init(pinA);
-    gpio_set_dir(pinA, GPIO_IN);
-    gpio_pull_up(pinA);
+  if (pin_a != 0xFF) {
+    gpio_init(pin_a);
+    gpio_set_dir(pin_a, GPIO_IN);
+    gpio_pull_up(pin_a);
   }
 
-  if (pinB != 0xFF) {
-    gpio_init(pinB);
-    gpio_set_dir(pinB, GPIO_IN);
-    gpio_pull_up(pinB);
+  if (pin_b != 0xFF) {
+    gpio_init(pin_b);
+    gpio_set_dir(pin_b, GPIO_IN);
+    gpio_pull_up(pin_b);
   }
 
-  if (pinBTN != 0xFF) {
-    gpio_init(pinBTN);
-    gpio_set_dir(pinBTN, GPIO_IN);
-    gpio_pull_up(pinBTN);
+  if (pin_btn != 0xFF) {
+    gpio_init(pin_btn);
+    gpio_set_dir(pin_btn, GPIO_IN);
+    gpio_pull_up(pin_btn);
   }
 
   // Initial state
-  last = (gpio_get(pinA) == pinsActive) ? 3 : 0;
-  last |= (gpio_get(pinB) == pinsActive) ? 1 : 0;
+  last = (gpio_get(pin_a) == pins_active) ? 3 : 0;
+  last |= (gpio_get(pin_b) == pins_active) ? 1 : 0;
 }
 
 void ClickEncoder::service() {
   // Encoder handling
   bool moved = false;
 
-  if (pinA >= 0 && pinB >= 0) {
-    if (accelerationEnabled) { // decelerate every tick
+  if (pin_a >= 0 && pin_b >= 0) {
+    if (acceleration_enabled) { // decelerate every tick
       acceleration -= ENC_ACCEL_DEC;
       if (acceleration & 0x8000) { // handle overflow of MSB is set
         acceleration = 0;
@@ -52,10 +52,10 @@ void ClickEncoder::service() {
     int8_t curr = 0;
 
     // Read current state of pins
-    if (gpio_get(pinA) == pinsActive) {
+    if (gpio_get(pin_a) == pins_active) {
       curr |= 2; // Set bit 1 (A pin)
     }
-    if (gpio_get(pinB) == pinsActive) {
+    if (gpio_get(pin_b) == pins_active) {
       curr |= 1; // Set bit 0 (B pin)
     }
 
@@ -79,47 +79,47 @@ void ClickEncoder::service() {
       moved = true;        // Flag that movement occurred
 
       // Handle acceleration if enabled
-      if (accelerationEnabled && acceleration <= (16000 - 200)) {
+      if (acceleration_enabled && acceleration <= (16000 - 200)) {
         acceleration += 200;
       }
     }
   }
 
   // Button handling
-  if (pinBTN != 0xFF) {
+  if (pin_btn != 0xFF) {
     absolute_time_t now = get_absolute_time();
-    uint64_t timeDiff = absolute_time_diff_us(lastButtonCheck, now) / 1000;
+    uint64_t timeDiff = absolute_time_diff_us(last_button_check, now) / 1000;
 
     if (timeDiff >= 10) {
-      lastButtonCheck = now;
-      bool btnState = gpio_get(pinBTN) == pinsActive;
+      last_button_check = now;
+      bool btnState = gpio_get(pin_btn) == pins_active;
 
       if (btnState) {
-        keyDownTicks++;
-        if (keyDownTicks > (buttonHoldTime / 10) && buttonHeldEnabled) {
+        keydown_ticks++;
+        if (keydown_ticks > (button_hold_time / 10) && button_held_enabled) {
           button = Held;
         }
       } else {
-        if (keyDownTicks > 1) {
+        if (keydown_ticks > 1) {
           if (button == Held) {
             button = Released;
-            doubleClickTicks = 0;
+            doubleclick_ticks = 0;
           } else {
-            if (doubleClickTicks > 0 &&
-                doubleClickTicks < (buttonDoubleClickTime / 10)) {
+            if (doubleclick_ticks > 0 &&
+                doubleclick_ticks < (button_double_click_time / 10)) {
               button = DoubleClicked;
-              doubleClickTicks = 0;
+              doubleclick_ticks = 0;
             } else {
-              doubleClickTicks = buttonDoubleClickTime / 10;
+              doubleclick_ticks = button_double_click_time / 10;
             }
           }
         }
-        keyDownTicks = 0;
+        keydown_ticks = 0;
       }
 
-      if (doubleClickTicks > 0) {
-        doubleClickTicks--;
-        if (doubleClickTicks == 0) {
+      if (doubleclick_ticks > 0) {
+        doubleclick_ticks--;
+        if (doubleclick_ticks == 0) {
           button = Clicked;
         }
       }
@@ -133,19 +133,19 @@ void ClickEncoder::service() {
     acceleration = 0;
 }
 
-int16_t ClickEncoder::getValue() {
+int16_t ClickEncoder::get_value() {
   int16_t val = delta;
   delta = 0;
 
   // Apply acceleration
-  if (accelerationEnabled) {
+  if (acceleration_enabled) {
     val *= 1 + (acceleration >> 8);
   }
 
   return val;
 }
 
-ClickEncoder::Button ClickEncoder::getButton() {
+ClickEncoder::Button ClickEncoder::get_button() {
   Button ret = button;
   if (button != Held && ret != Open) {
     button = Open;
