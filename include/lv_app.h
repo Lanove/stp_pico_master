@@ -62,6 +62,27 @@ struct Bottom_Grid_Buttons {
   lv_obj_t *settings;
 };
 
+struct Big_Labels_Value {
+  float v;
+  float a;
+  float w;
+  float wh;
+};
+
+struct Setting_Labels_Value {
+  float setpoint;
+  uint32_t timer;
+  float cutoff_v;
+  float cutoff_e;
+};
+
+struct Status_Labels_Value {
+  bool wifi;
+  bool started;
+  float temp;
+  uint32_t time_running;
+};
+
 typedef enum {
   Setpoint,
   Timer,
@@ -78,10 +99,11 @@ typedef enum {
 extern Setting_Highlighted_Container setting_highlight;
 extern Source_Highlighted_Container source_highlight;
 
-extern struct Highlightable_Containers highlightable_containers;
-extern struct Big_Labels big_labels;
-extern struct Top_Grid_Labels top_grid_labels;
-extern struct Bottom_Grid_Buttons bottom_grid_buttons;
+extern Highlightable_Containers highlightable_containers;
+extern Big_Labels big_labels;
+extern Top_Grid_Labels top_grid_labels;
+extern Bottom_Grid_Buttons bottom_grid_buttons;
+
 extern const char *bottom_home_btns[];
 extern lv_obj_t *scr_home;
 
@@ -89,7 +111,6 @@ static void button_event_handler(lv_event_t *e);
 
 void set_setting_highlight(Setting_Highlighted_Container container,
                            bool highlight);
-
 void set_source_highlight(Source_Highlighted_Container container,
                           bool highlight);
 void clear_setting_highlight();
@@ -97,11 +118,15 @@ void clear_source_highlight();
 void set_highlight_container(lv_obj_t *container, bool highlight);
 void splash_screen(uint32_t delay);
 void settings_screen(uint32_t delay);
-void app_entry();
 void splash_screen(uint32_t delay);
 lv_obj_t *create_row_container(lv_obj_t *parent, int flex_grow,
                                void (*create_child_cb)(lv_obj_t *));
 void home_screen(uint32_t delay);
+
+void app_entry();
+void app_update(const Big_Labels_Value &big_labels_value,
+            const Setting_Labels_Value &setting_labels_value,
+            const Status_Labels_Value &status_labels_value);
 
 } // namespace lvgl_app
 #endif
