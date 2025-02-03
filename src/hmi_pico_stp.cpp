@@ -8,6 +8,7 @@
 #include "lv_app.h"
 #include "lv_drivers.h"
 #include "modbus_master.h"
+#include "pico/multicore.h"
 #include "pico/stdlib.h"
 #include "pico/time.h"
 #include "pzem017.h"
@@ -37,6 +38,8 @@ ModbusMaster mbm = ModbusMaster(modbus_de_re, modbus_rx, modbus_tx, modbus_uart,
 
 PZEM017 pzem017 = PZEM017(mbm, 0x02);
 PZEM017::measurement_t pzem017_measurement;
+void core1_entry();
+void core0_entry();
 
 int main() {
   stdio_init_all();
@@ -50,41 +53,18 @@ int main() {
   clock_configure(clk_peri, 0, CLOCKS_CLK_PERI_CTRL_AUXSRC_VALUE_CLK_SYS,
                   processor_mhz * 1000 * 1000, processor_mhz * 1000 * 1000);
 
-  encoder.init();
+  multicore_launch_core1(core1_entry);
+
+  core0_entry();
+}
+
+void core0_entry() {
   mbm.init();
-  lvgl_display_init();
-
-  uint32_t clk_freq = clock_get_hz(clk_peri);
-  printf("SPI1 source clock frequency: %u Hz\n", clk_freq);
-  clk_freq = spi_get_baudrate(spi1);
-  printf("SPI1 clock frequency: %u Hz\n", clk_freq);
-
-  add_repeating_timer_us(
-      100,
-      [](struct repeating_timer *t) -> bool {
-        encoder.service();
-        return true;
-      },
-      NULL, &encoder_service_timer);
-
-  // lvgl_app::app_entry();
-  int encoder_value = 0;
-  int last_encoder_value = 0;
-  int undivided_encoder_value = 0;
 
   gpio_init(15);
   gpio_set_dir(15, GPIO_OUT);
   PZEM017::status_t status;
   while (true) {
-
-    undivided_encoder_value += encoder.getValue();
-    encoder_value = undivided_encoder_value / 4;
-    ClickEncoder::Button b = encoder.getButton();
-    if (encoder_value != last_encoder_value) {
-      printf("Encoder value: %d\n", encoder_value);
-    }
-
-    last_encoder_value = encoder_value;
     status = pzem017.request_all(pzem017_measurement);
     if (status == PZEM017::No_Error) {
       printf("Voltage: %.2f V\n", pzem017_measurement.voltage);
@@ -102,4 +82,39 @@ int main() {
     // lv_timer_handler();
     // sleep_ms(5);
   }
+  return;
+}
+
+void core1_entry() {
+  lvgl_display_init();
+  lvgl_app::app_entry();
+
+  encoder.init();
+  add_repeating_timer_us(
+      100,
+      [](struct repeating_timer *t) -> bool {
+        encoder.service();
+        return true;
+      },
+      NULL, &encoder_service_timer);
+
+  int encoder_value = 0;
+  int last_encoder_value = 0;
+  int undivided_encoder_value = 0;
+
+  while (true) {
+    lv_timer_handler();
+
+    undivided_encoder_value += encoder.getValue();
+    encoder_value = undivided_encoder_value / 4;
+    ClickEncoder::Button b = encoder.getButton();
+    if (encoder_value != last_encoder_value) {
+      printf("Encoder value: %d\n", encoder_value);
+    }
+
+    last_encoder_value = encoder_value;
+
+    sleep_ms(5);
+  }
+  return;
 }

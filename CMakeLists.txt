@@ -44,6 +44,7 @@ target_link_libraries(hmi_pico_stp
     hardware_uart
     ModbusMaster
     rs485_slaves
+    pico_multicore
 )
 
 # Add the standard include files to the build
