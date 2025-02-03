@@ -1,4 +1,4 @@
-#include "ClickEncoder.h"
+#include "click_encoder.h"
 #include "hardware/clocks.h"
 #include "hardware/pll.h"
 #include "hardware/structs/clocks.h"

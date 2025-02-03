@@ -29,7 +29,7 @@ uint8_t T_IRQ = 1;
 
 constexpr float tft_freq_mhz = 62.5;
 
-static ili9486_drivers tft(tft_spi, tft_cs, tft_dc, tft_reset, tft_tx, tft_rx,
+static ILI9486Drivers tft(tft_spi, tft_cs, tft_dc, tft_reset, tft_tx, tft_rx,
                            tft_sck, tft_freq_mhz * 1000 * 1000);
 
 static XPT2046 touch(touch_spi, T_DIN, T_DO, T_CLK, T_CS, T_IRQ);
@@ -40,12 +40,12 @@ static void touch_cb(lv_indev_t *indev, lv_indev_data_t *data);
 
 void lvgl_display_init() {
   tft.init();
-  tft.setRotation(LANDSCAPE);
+  tft.set_rotation(LANDSCAPE);
   touch.begin(LANDSCAPE);
 
-  tft.dmaInit([]() {
+  tft.dma_init([]() {
     lv_display_flush_ready(disp);
-    tft.endTransaction();
+    tft.end_transaction();
   });
 
   // Initialize LVGL
@@ -83,10 +83,10 @@ static void disp_flush(lv_display_t *dispf, const lv_area_t *area,
                        uint8_t *px_map) {
   uint32_t num_pixels = (area->x2 - area->x1 + 1) * (area->y2 - area->y1 + 1);
 
-  tft.setAddressWindow(area->x1, area->y1, area->x2 - area->x1 + 1,
+  tft.set_address_window(area->x1, area->y1, area->x2 - area->x1 + 1,
                        area->y2 - area->y1 + 1);
-  tft.startTransaction();
-  tft.pushColorsDMA(reinterpret_cast<uint32_t *>(px_map), num_pixels);
+  tft.start_transaction();
+  tft.push_colors_dma(reinterpret_cast<uint32_t *>(px_map), num_pixels);
 }
 
 static void touch_cb(lv_indev_t *indev, lv_indev_data_t *data) {

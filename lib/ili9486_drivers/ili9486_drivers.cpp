@@ -4,7 +4,7 @@
  */
 #include "ili9486_drivers.h"
 
-ili9486_drivers::ili9486_drivers(spi_inst_t *spi, uint8_t pin_cs,
+ILI9486Drivers::ILI9486Drivers(spi_inst_t *spi, uint8_t pin_cs,
                                  uint8_t pin_dc, uint8_t pin_rst, uint8_t mosi,
                                  uint8_t miso, uint8_t sck, uint32_t spi_clock,
                                  bool dma_used)
@@ -12,7 +12,7 @@ ili9486_drivers::ili9486_drivers(spi_inst_t *spi, uint8_t pin_cs,
       pin_mosi(mosi), pin_miso(miso), pin_sck(sck), spi_clock(spi_clock),
       dma_used(dma_used) {}
 
-void ili9486_drivers::init() {
+void ILI9486Drivers::init() {
   // Initialize GPIOs
   gpio_init(pin_cs);
   gpio_init(pin_dc);
@@ -51,7 +51,7 @@ void ili9486_drivers::init() {
   printf("DMA used: %d\n", dma_used);
 
   // Send initialization commands
-  const uint8_t *initCommand_ptr = initCommands;
+  const uint8_t *initCommand_ptr = init_commands;
   while (true) {
     // Check for end marker
     if (initCommand_ptr[0] == 0xFF && initCommand_ptr[1] == 0xFF)
@@ -63,31 +63,31 @@ void ili9486_drivers::init() {
     if (next == CMD_Delay) {
       // Handle delay
       uint8_t delay_ms = *initCommand_ptr++;
-      writeCommand(cmd);
+      write_command(cmd);
       sleep_ms(delay_ms);
     } else {
       // Handle parameters
       uint8_t param_count = next;
-      writeCommand(cmd);
+      write_command(cmd);
       for (uint8_t i = 0; i < param_count; i++) {
         uint8_t data = *initCommand_ptr++;
-        writeData(data);
+        write_data(data);
       }
     }
   }
-  setRotation(LANDSCAPE);
-  fillScreen((uint32_t)0); // Clear screen
+  set_rotation(LANDSCAPE);
+  fill_screen((uint32_t)0); // Clear screen
 }
 
-void ili9486_drivers::drawPixel(int16_t x, int16_t y, uint32_t color) {
+void ILI9486Drivers::draw_pixel(int16_t x, int16_t y, uint32_t color) {
   if ((x < 0) || (x >= _width) || (y < 0) || (y >= _height))
     return;
 
-  setAddressWindow(x, y, x, y);
-  pushBlock(color, 1);
+  set_address_window(x, y, x, y);
+  push_block(color, 1);
 }
 
-void ili9486_drivers::setRotation(Rotations rotation) {
+void ILI9486Drivers::set_rotation(Rotations rotation) {
   _rot = rotation;
   uint8_t madctl = 0; // BGR filter is always enabled
 
@@ -114,72 +114,72 @@ void ili9486_drivers::setRotation(Rotations rotation) {
     break;
   }
 
-  startTransaction();
-  writeCommand(CMD_MemoryAccessControl);
-  writeData(madctl);
-  endTransaction();
+  start_transaction();
+  write_command(CMD_MemoryAccessControl);
+  write_data(madctl);
+  end_transaction();
 
   // Update dimensions based on orientation
   _width = swap_dims ? panel_height : panel_width;
   _height = swap_dims ? panel_width : panel_height;
 }
 
-void ili9486_drivers::writeCommand(uint8_t cmd) {
-  startTransaction();
+void ILI9486Drivers::write_command(uint8_t cmd) {
+  start_transaction();
   gpio_put(pin_dc, 0);
   spi_write_blocking(spi, &cmd, 1);
-  endTransaction();
+  end_transaction();
 }
 
-void ili9486_drivers::writeData(uint8_t data) {
-  startTransaction();
+void ILI9486Drivers::write_data(uint8_t data) {
+  start_transaction();
   gpio_put(pin_dc, 1);
   spi_write_blocking(spi, &data, 1);
-  endTransaction();
+  end_transaction();
 }
 
-void ili9486_drivers::setWindow(int32_t x0, int32_t y0, int32_t x1,
+void ILI9486Drivers::set_window(int32_t x0, int32_t y0, int32_t x1,
                                 int32_t y1) {
-  writeCommand(CMD_ColumnAddressSet);
-  writeData(x0 >> 8);
-  writeData(x0 & 0xFF);
-  writeData(x1 >> 8);
-  writeData(x1 & 0xFF);
+  write_command(CMD_ColumnAddressSet);
+  write_data(x0 >> 8);
+  write_data(x0 & 0xFF);
+  write_data(x1 >> 8);
+  write_data(x1 & 0xFF);
 
-  writeCommand(CMD_PageAddressSet);
-  writeData(y0 >> 8);
-  writeData(y0 & 0xFF);
-  writeData(y1 >> 8);
-  writeData(y1 & 0xFF);
+  write_command(CMD_PageAddressSet);
+  write_data(y0 >> 8);
+  write_data(y0 & 0xFF);
+  write_data(y1 >> 8);
+  write_data(y1 & 0xFF);
 
-  writeCommand(CMD_MemoryWrite);
+  write_command(CMD_MemoryWrite);
 }
 
-void ili9486_drivers::pushBlock(uint32_t color, uint32_t len) {
+void ILI9486Drivers::push_block(uint32_t color, uint32_t len) {
   uint8_t color_buf[3] = {static_cast<uint8_t>(color >> 16),
                           static_cast<uint8_t>(color >> 8),
                           static_cast<uint8_t>(color & 0xFF)};
-  startTransaction();
+  start_transaction();
   gpio_put(pin_dc, 1);
   for (uint32_t i = 0; i < len; i++) {
     spi_write_blocking(spi, color_buf, 3);
   }
-  endTransaction();
+  end_transaction();
 }
 
-void ili9486_drivers::fillScreen(uint32_t color) {
-  setAddressWindow(0, 0, _width, _height);
-  pushBlock(color, _width * _height);
+void ILI9486Drivers::fill_screen(uint32_t color) {
+  set_address_window(0, 0, _width, _height);
+  push_block(color, _width * _height);
 }
 
-void ili9486_drivers::pushColors(uint32_t *color, uint32_t len) {
-  startTransaction();
+void ILI9486Drivers::push_colors(uint32_t *color, uint32_t len) {
+  start_transaction();
   gpio_put(pin_dc, 1);
   spi_write_blocking(spi, reinterpret_cast<uint8_t *>(color), len * 3);
-  endTransaction();
+  end_transaction();
 }
 
-void ili9486_drivers::dmaInit(void (*onComplete_cb)(void)) {
+void ILI9486Drivers::dma_init(void (*onComplete_cb)(void)) {
   dma_tx_channel = dma_claim_unused_channel(true);
   dma_tx_config = dma_channel_get_default_config(dma_tx_channel);
   channel_config_set_transfer_data_size(&dma_tx_config, DMA_SIZE_8);
@@ -205,7 +205,7 @@ void ili9486_drivers::dmaInit(void (*onComplete_cb)(void)) {
   dma_used = true;
 }
 
-void ili9486_drivers::pushColorsDMA(uint32_t *colors, uint32_t len) {
+void ILI9486Drivers::push_colors_dma(uint32_t *colors, uint32_t len) {
   if (!dma_used)
     return;
   gpio_put(pin_dc, 1);
@@ -222,19 +222,19 @@ void ili9486_drivers::pushColorsDMA(uint32_t *colors, uint32_t len) {
   );
 }
 
-uint32_t ili9486_drivers::create888Color(uint8_t r, uint8_t g, uint8_t b) {
+uint32_t ILI9486Drivers::create_888_color(uint8_t r, uint8_t g, uint8_t b) {
   return (b << 16) | (g << 8) | r;
 }
 
-uint32_t ili9486_drivers::create666Color(uint8_t r, uint8_t g, uint8_t b) {
+uint32_t ILI9486Drivers::create_666_color(uint8_t r, uint8_t g, uint8_t b) {
   return ((b & 0x3F) << 18) | ((g & 0x3F) << 10) | ((r & 0x3F) << 2);
 }
 
-void ili9486_drivers::setAddressWindow(int32_t x, int32_t y, int32_t w,
+void ILI9486Drivers::set_address_window(int32_t x, int32_t y, int32_t w,
                                        int32_t h) {
-  setWindow(x, y, x + w - 1, y + h - 1);
+  set_window(x, y, x + w - 1, y + h - 1);
 }
 
 // Transaction management
-void ili9486_drivers::startTransaction() { gpio_put(pin_cs, 0); }
-void ili9486_drivers::endTransaction() { gpio_put(pin_cs, 1); }
+void ILI9486Drivers::start_transaction() { gpio_put(pin_cs, 0); }
+void ILI9486Drivers::end_transaction() { gpio_put(pin_cs, 1); }

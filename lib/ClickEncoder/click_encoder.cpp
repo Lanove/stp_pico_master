@@ -1,4 +1,4 @@
-#include "ClickEncoder.h"
+#include "click_encoder.h"
 
 #define ENC_ACCEL_TOP 16000 // max. acceleration: *12 (val >> 8)
 #define ENC_ACCEL_INC 200

@@ -91,7 +91,8 @@ static constexpr uint8_t CMD_DisplayGammaControl1 = 0xE2;
 static constexpr uint8_t CMD_DisplayGammaControl2 = 0xE3;
 static constexpr uint8_t CMD_SPIReadCommandSetting = 0xFB;
 static constexpr uint8_t CMD_Delay = 0x80;
-static constexpr uint8_t initCommands[] = {
+
+static constexpr uint8_t init_commands[] = {
     // Positive Gamma Control (E0)
     CMD_PositiveGammaControl, 15, 0x00, 0x03, 0x09, 0x08, 0x16, 0x0A, 0x3F,
     0x78, 0x4C, 0x09, 0x0A, 0x08, 0x16, 0x1A, 0x0F,
