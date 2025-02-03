@@ -41,6 +41,8 @@ target_link_libraries(hmi_pico_stp
     ClickEncoder
     xpt2046
     lvgl
+    hardware_uart
+    ModbusMaster
     # lvgl::lvgl
 )
 
@@ -55,6 +57,7 @@ add_subdirectory(lib/ili9486_drivers)
 add_subdirectory(lib/lvgl)
 add_subdirectory(lib/xpt2046)
 add_subdirectory(lib/ClickEncoder)
+add_subdirectory(lib/modbus_master)
 
 pico_add_extra_outputs(hmi_pico_stp)
 

@@ -46,6 +46,8 @@
         "timer": "cpp",
         "valuemap": "cpp",
         "valueobject": "cpp",
-        "valuestack": "cpp"
+        "valuestack": "cpp",
+        "cstdint": "cpp",
+        "types": "cpp"
     }
 }

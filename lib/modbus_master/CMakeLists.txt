@@ -6,21 +6,20 @@ set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 17)
 
 pico_sdk_init()
-project(ClickEncoder)
+project(ModbusMaster)
 
 file(GLOB FILES ./*.cpp ./*.h)
-add_library(ClickEncoder STATIC ${FILES})
+add_library(ModbusMaster STATIC ${FILES})
 
-target_link_libraries(ClickEncoder PRIVATE
+target_link_libraries(ModbusMaster PRIVATE
     pico_stdlib
-    hardware_adc
-    hardware_irq
+    hardware_uart
     hardware_dma
     )
 # Following two libraries must be PUBLIC, idk
-target_link_libraries(ClickEncoder PUBLIC 
-    hardware_spi
+target_link_libraries(ModbusMaster PUBLIC 
+    hardware_uart
     hardware_dma
 )
 
-target_include_directories(ClickEncoder PUBLIC ./)
+target_include_directories(ModbusMaster PUBLIC ./)
