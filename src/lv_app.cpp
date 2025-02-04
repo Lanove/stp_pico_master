@@ -1,19 +1,6 @@
 #include "lv_app.h"
 
-namespace lvgl_app {
-
-const char *bottom_home_btns[] = {"Setpoint", "Timer", "Cut-off V", "Cut-off E", "Settings"};
-lv_obj_t   *scr_home;
-
-struct Highlightable_Containers highlightable_containers;
-struct Big_Labels               big_labels;
-struct Top_Grid_Labels          top_grid_labels;
-struct Bottom_Grid_Buttons      bottom_grid_buttons;
-
-Setting_Highlighted_Container setting_highlight;
-Source_Highlighted_Container  source_highlight;
-
-void app_entry() {
+void LVGL_App::app_entry() {
   splash_screen(0);
 
   lv_theme_t *th = lv_theme_default_init(NULL,                                   /* Use DPI, size, etc. from this display */
@@ -27,7 +14,7 @@ void app_entry() {
   home_screen(splash_fadein_dur + splash_stay_dur + splash_fadeout_dur);
 }
 
-void splash_screen(uint32_t delay) {
+void LVGL_App::splash_screen(uint32_t delay) {
   lv_obj_t *scr = lv_obj_create(NULL);
   lv_scr_load(scr);
 
@@ -44,14 +31,14 @@ void splash_screen(uint32_t delay) {
   lv_anim_set_exec_cb(&a, [](void *obj, int32_t v) {
     lv_obj_set_style_opa((lv_obj_t *) obj, v, 0);
     if (v == 255)
-      lv_obj_fade_out((lv_obj_t *) obj, splash_fadeout_dur, splash_stay_dur);
+      lv_obj_fade_out((lv_obj_t *) obj, LVGL_App::splash_fadeout_dur, LVGL_App::splash_stay_dur);
   });
   lv_anim_set_values(&a, 0, 255);
   lv_anim_set_path_cb(&a, lv_anim_path_ease_in_out);
   lv_anim_start(&a);
 }
 
-lv_obj_t *create_row_container(lv_obj_t *parent, int flex_grow, void (*create_child_cb)(lv_obj_t *)) {
+lv_obj_t *LVGL_App::create_row_container(lv_obj_t *parent, int flex_grow, std::function<void(lv_obj_t *)> create_child_cb) {
   lv_obj_t *row_container = lv_obj_create(parent);
 
   lv_obj_set_style_pad_all(row_container, 0, LV_PART_MAIN);
@@ -70,7 +57,7 @@ lv_obj_t *create_row_container(lv_obj_t *parent, int flex_grow, void (*create_ch
   return row_container;
 }
 
-void home_screen(uint32_t delay) {
+void LVGL_App::home_screen(uint32_t delay) {
   static int top_grid_height    = 30;
   static int bottom_grid_height = 50;
   static int center_grid_height = DISPLAY_SIZE_Y - top_grid_height - bottom_grid_height;
@@ -108,7 +95,7 @@ void home_screen(uint32_t delay) {
   top_grid_labels.timer_label = timer_label;
 
   // Start/Stop container
-  lv_obj_t *start_stop_cont = create_row_container(top_grid, 1, [](lv_obj_t *row_container) {
+  lv_obj_t *start_stop_cont = create_row_container(top_grid, 1, [this](lv_obj_t *row_container) {
     lv_obj_set_style_bg_opa(row_container, LV_OPA_TRANSP, 0);
     lv_obj_t *start_stop_cont  = lv_obj_create(row_container);
     lv_obj_t *start_stop_label = lv_label_create(start_stop_cont);
@@ -174,7 +161,7 @@ void home_screen(uint32_t delay) {
                         LV_FLEX_ALIGN_CENTER);  // Align children
   lv_obj_clear_flag(left_ctr_grid, LV_OBJ_FLAG_SCROLLABLE);
 
-  create_row_container(left_ctr_grid, 2, [](lv_obj_t *row_container) {
+  create_row_container(left_ctr_grid, 2, [this](lv_obj_t *row_container) {
     lv_obj_set_style_pad_hor(row_container, 10, LV_PART_MAIN);
     lv_obj_set_style_pad_right(row_container, 50, LV_PART_MAIN);
     // Create the big label (larger text)
@@ -191,7 +178,7 @@ void home_screen(uint32_t delay) {
                                0);  // Use a smaller font for small text
   });
 
-  create_row_container(left_ctr_grid, 2, [](lv_obj_t *row_container) {
+  create_row_container(left_ctr_grid, 2, [this](lv_obj_t *row_container) {
     lv_obj_set_style_pad_hor(row_container, 10, LV_PART_MAIN);
     lv_obj_set_style_pad_right(row_container, 50, LV_PART_MAIN);
     // Create the big label (larger text)
@@ -208,38 +195,37 @@ void home_screen(uint32_t delay) {
                                0);  // Use a smaller font for small text
   });
 
-  create_row_container(left_ctr_grid, 1,
-                       [](lv_obj_t *row_container) {  // Set up the row container with flex layout
-                         // Create the first label (align left)
-                         lv_obj_set_style_pad_hor(row_container, 10, LV_PART_MAIN);
-                         lv_obj_t *big_label_left = lv_label_create(row_container);
-                         lv_label_set_text(big_label_left, "Setpoint:");
-                         lv_obj_set_style_text_font(big_label_left, &lv_font_montserrat_16, 0);
-                         lv_obj_set_flex_grow(big_label_left, 3);
+  create_row_container(left_ctr_grid, 1, [this](lv_obj_t *row_container) {  // Set up the row container with flex layout
+    // Create the first label (align left)
+    lv_obj_set_style_pad_hor(row_container, 10, LV_PART_MAIN);
+    lv_obj_t *big_label_left = lv_label_create(row_container);
+    lv_label_set_text(big_label_left, "Setpoint:");
+    lv_obj_set_style_text_font(big_label_left, &lv_font_montserrat_16, 0);
+    lv_obj_set_flex_grow(big_label_left, 3);
 
-                         create_row_container(row_container, 3, [](lv_obj_t *row_container) {
-                           lv_obj_set_style_bg_color(row_container, lv_palette_main(LV_PALETTE_BLUE), 0);
-                           lv_obj_set_style_bg_opa(row_container, LV_OPA_TRANSP, 0);
+    create_row_container(row_container, 3, [this](lv_obj_t *row_container) {
+      lv_obj_set_style_bg_color(row_container, lv_palette_main(LV_PALETTE_BLUE), 0);
+      lv_obj_set_style_bg_opa(row_container, LV_OPA_TRANSP, 0);
 
-                           lv_obj_set_style_radius(row_container, 0, LV_PART_MAIN);
-                           lv_obj_set_size(row_container, LV_PCT(100), LV_PCT(100));
-                           lv_obj_set_flex_align(row_container, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-                           // Create the third label (align right)
-                           lv_obj_t *small_label_right = lv_label_create(row_container);
-                           lv_label_set_text_fmt(small_label_right, "0W");
-                           lv_obj_set_style_text_font(small_label_right, &lv_font_montserrat_16, 0);
-                           highlightable_containers.setpoint.container = row_container;
-                           highlightable_containers.setpoint.label     = small_label_right;
-                         });
+      lv_obj_set_style_radius(row_container, 0, LV_PART_MAIN);
+      lv_obj_set_size(row_container, LV_PCT(100), LV_PCT(100));
+      lv_obj_set_flex_align(row_container, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+      // Create the third label (align right)
+      lv_obj_t *small_label_right = lv_label_create(row_container);
+      lv_label_set_text_fmt(small_label_right, "0W");
+      lv_obj_set_style_text_font(small_label_right, &lv_font_montserrat_16, 0);
+      highlightable_containers.setpoint.container = row_container;
+      highlightable_containers.setpoint.label     = small_label_right;
+    });
 
-                         // Create the third label (align right)
-                         lv_obj_t *small_label_right = lv_label_create(row_container);
-                         lv_label_set_text_fmt(small_label_right, "(%d%s)", 0, "%");
-                         lv_obj_set_style_text_font(small_label_right, &lv_font_montserrat_16, 0);
-                         lv_obj_set_flex_grow(small_label_right, 2);
-                       });
+    // Create the third label (align right)
+    lv_obj_t *small_label_right = lv_label_create(row_container);
+    lv_label_set_text_fmt(small_label_right, "(%d%s)", 0, "%");
+    lv_obj_set_style_text_font(small_label_right, &lv_font_montserrat_16, 0);
+    lv_obj_set_flex_grow(small_label_right, 2);
+  });
 
-  create_row_container(left_ctr_grid, 1, [](lv_obj_t *row_container) {
+  create_row_container(left_ctr_grid, 1, [this](lv_obj_t *row_container) {
     lv_obj_set_style_pad_hor(row_container, 10, LV_PART_MAIN);
     lv_obj_set_style_pad_ver(row_container, 5, LV_PART_MAIN);
     lv_obj_t *source_label = lv_label_create(row_container);
@@ -247,7 +233,7 @@ void home_screen(uint32_t delay) {
     lv_obj_set_style_text_font(source_label, &lv_font_montserrat_16, 0);
     lv_obj_set_flex_grow(source_label, 2);
 
-    create_row_container(row_container, 1, [](lv_obj_t *row_container) {
+    create_row_container(row_container, 1, [this](lv_obj_t *row_container) {
       lv_obj_set_style_bg_color(row_container, lv_palette_main(LV_PALETTE_BLUE), 0);
       lv_obj_set_style_bg_opa(row_container, LV_OPA_TRANSP, 0);
 
@@ -261,7 +247,7 @@ void home_screen(uint32_t delay) {
       highlightable_containers.source_ac.container = row_container;
       highlightable_containers.source_ac.label     = small_label_right;
     });
-    create_row_container(row_container, 1, [](lv_obj_t *row_container) {
+    create_row_container(row_container, 1, [this](lv_obj_t *row_container) {
       lv_obj_set_style_bg_color(row_container, lv_palette_main(LV_PALETTE_BLUE), 0);
       lv_obj_set_style_bg_opa(row_container, LV_OPA_TRANSP, 0);
 
@@ -275,7 +261,7 @@ void home_screen(uint32_t delay) {
       highlightable_containers.source_dc.container = row_container;
       highlightable_containers.source_dc.label     = small_label_right;
     });
-    create_row_container(row_container, 1, [](lv_obj_t *row_container) {
+    create_row_container(row_container, 1, [this](lv_obj_t *row_container) {
       lv_obj_set_style_bg_color(row_container, lv_palette_main(LV_PALETTE_BLUE), 0);
       lv_obj_set_style_bg_opa(row_container, LV_OPA_TRANSP, 0);
 
@@ -314,7 +300,7 @@ void home_screen(uint32_t delay) {
                         LV_FLEX_ALIGN_CENTER);  // Align children
   lv_obj_clear_flag(right_ctr_grid, LV_OBJ_FLAG_SCROLLABLE);
 
-  create_row_container(right_ctr_grid, 6, [](lv_obj_t *row_container) {
+  create_row_container(right_ctr_grid, 6, [this](lv_obj_t *row_container) {
     lv_obj_set_style_pad_hor(row_container, 10, LV_PART_MAIN);
     lv_obj_set_style_pad_right(row_container, 35, LV_PART_MAIN);
     // Create the big label (larger text)
@@ -331,7 +317,7 @@ void home_screen(uint32_t delay) {
                                0);  // Use a smaller font for small text
   });
 
-  create_row_container(right_ctr_grid, 6, [](lv_obj_t *row_container) {
+  create_row_container(right_ctr_grid, 6, [this](lv_obj_t *row_container) {
     lv_obj_set_style_pad_hor(row_container, 10, LV_PART_MAIN);
     lv_obj_set_style_pad_right(row_container, 35, LV_PART_MAIN);
     lv_obj_set_style_pad_top(row_container, 10, LV_PART_MAIN);
@@ -350,7 +336,7 @@ void home_screen(uint32_t delay) {
                                0);  // Use a smaller font for small text
   });
 
-  create_row_container(right_ctr_grid, 2, [](lv_obj_t *row_container) {
+  create_row_container(right_ctr_grid, 2, [this](lv_obj_t *row_container) {
     lv_obj_set_style_pad_hor(row_container, 10, LV_PART_MAIN);
 
     // Create the small label (smaller text)
@@ -360,7 +346,7 @@ void home_screen(uint32_t delay) {
                                0);  // Use a smaller font for small text
     lv_obj_set_flex_grow(cutoff_label, 3);
 
-    create_row_container(row_container, 2, [](lv_obj_t *row_container) {
+    create_row_container(row_container, 2, [this](lv_obj_t *row_container) {
       lv_obj_set_style_bg_color(row_container, lv_palette_main(LV_PALETTE_BLUE), 0);
       lv_obj_set_style_bg_opa(row_container, LV_OPA_TRANSP, 0);
 
@@ -383,7 +369,7 @@ void home_screen(uint32_t delay) {
     lv_obj_set_flex_grow(small_label_right, 1);
   });
 
-  create_row_container(right_ctr_grid, 2, [](lv_obj_t *row_container) {
+  create_row_container(right_ctr_grid, 2, [this](lv_obj_t *row_container) {
     lv_obj_set_style_pad_hor(row_container, 10, LV_PART_MAIN);
 
     // Create the small label (smaller text)
@@ -393,7 +379,7 @@ void home_screen(uint32_t delay) {
                                0);  // Use a smaller font for small text
     lv_obj_set_flex_grow(cutoff_label, 3);
 
-    create_row_container(row_container, 2, [](lv_obj_t *row_container) {
+    create_row_container(row_container, 2, [this](lv_obj_t *row_container) {
       lv_obj_set_style_bg_color(row_container, lv_palette_main(LV_PALETTE_BLUE), 0);
       lv_obj_set_style_bg_opa(row_container, LV_OPA_TRANSP, 0);
 
@@ -416,7 +402,7 @@ void home_screen(uint32_t delay) {
     lv_obj_set_flex_grow(small_label_right, 1);
   });
 
-  create_row_container(right_ctr_grid, 2, [](lv_obj_t *row_container) {
+  create_row_container(right_ctr_grid, 2, [this](lv_obj_t *row_container) {
     lv_obj_set_style_pad_hor(row_container, 10, LV_PART_MAIN);
 
     // Create the small label (smaller text)
@@ -426,7 +412,7 @@ void home_screen(uint32_t delay) {
                                0);  // Use a smaller font for small text
     lv_obj_set_flex_grow(cutoff_label, 3);
 
-    create_row_container(row_container, 3, [](lv_obj_t *row_container) {
+    create_row_container(row_container, 3, [this](lv_obj_t *row_container) {
       lv_obj_set_style_bg_color(row_container, lv_palette_main(LV_PALETTE_BLUE), 0);
       lv_obj_set_style_bg_opa(row_container, LV_OPA_TRANSP, 0);
 
@@ -499,14 +485,20 @@ void home_screen(uint32_t delay) {
     }
 
     // Add button event handler
-    lv_obj_add_event_cb(btn, button_event_handler, LV_EVENT_ALL, NULL);
+    lv_obj_add_event_cb(
+        btn,
+        [](lv_event_t *e) {
+          // Call the member function through the captured 'this' pointer
+          static_cast<LVGL_App *>(lv_event_get_user_data(e))->button_event_handler(e);
+        },
+        LV_EVENT_ALL, this);
   }
   set_setting_highlight(Setpoint, true);
   set_source_highlight(Source_Off, true);
 }
 
-void app_update(const Big_Labels_Value &big_labels_value, const Setting_Labels_Value &setting_labels_value,
-                const Status_Labels_Value &status_labels_value) {
+void LVGL_App::app_update(const Big_Labels_Value &big_labels_value, const Setting_Labels_Value &setting_labels_value,
+                          const Status_Labels_Value &status_labels_value) {
   static Big_Labels_Value     prev_big_labels_value;
   static Setting_Labels_Value prev_setting_labels_value;
   static Status_Labels_Value  prev_status_labels_value;
@@ -558,7 +550,7 @@ void app_update(const Big_Labels_Value &big_labels_value, const Setting_Labels_V
   prev_status_labels_value  = status_labels_value;
 }
 
-static void button_event_handler(lv_event_t *e) {
+void LVGL_App::button_event_handler(lv_event_t *e) {
   lv_event_code_t code = lv_event_get_code(e);
   lv_obj_t       *obj  = (lv_obj_t *) lv_event_get_target(e);
 
@@ -577,7 +569,7 @@ static void button_event_handler(lv_event_t *e) {
   }
 }
 
-void set_highlight_container(lv_obj_t *container, bool highlight) {
+void LVGL_App::set_highlight_container(lv_obj_t *container, bool highlight) {
   if (highlight) {
     lv_obj_set_style_bg_opa(container, LV_OPA_COVER, 0);
   } else {
@@ -585,7 +577,7 @@ void set_highlight_container(lv_obj_t *container, bool highlight) {
   }
 }
 
-void set_setting_highlight(Setting_Highlighted_Container container, bool highlight) {
+void LVGL_App::set_setting_highlight(Setting_Highlighted_Container container, bool highlight) {
   clear_setting_highlight();
   setting_highlight = container;
   switch (container) {
@@ -604,7 +596,7 @@ void set_setting_highlight(Setting_Highlighted_Container container, bool highlig
   }
 }
 
-void set_source_highlight(Source_Highlighted_Container container, bool highlight) {
+void LVGL_App::set_source_highlight(Source_Highlighted_Container container, bool highlight) {
   clear_source_highlight();
   source_highlight = container;
   switch (container) {
@@ -620,7 +612,7 @@ void set_source_highlight(Source_Highlighted_Container container, bool highlight
   }
 }
 
-void clear_setting_highlight() {
+void LVGL_App::clear_setting_highlight() {
   set_highlight_container(highlightable_containers.setpoint.container, false);
   set_highlight_container(highlightable_containers.cutoff_v.container, false);
   set_highlight_container(highlightable_containers.cutoff_e.container, false);
@@ -629,10 +621,8 @@ void clear_setting_highlight() {
   //   false);
 }
 
-void clear_source_highlight() {
+void LVGL_App::clear_source_highlight() {
   set_highlight_container(highlightable_containers.source_ac.container, false);
   set_highlight_container(highlightable_containers.source_dc.container, false);
   set_highlight_container(highlightable_containers.source_off.container, false);
 }
-
-}  // namespace lvgl_app

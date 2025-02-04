@@ -40,9 +40,9 @@ PZEM017                pzem017 = PZEM017(mbm, 0x02);
 PZEM017::measurement_t pzem017_measurement;
 
 // Following variabbles are shared between the two cores
-lvgl_app::Big_Labels_Value     shared_big_labels_value;
-lvgl_app::Setting_Labels_Value shared_setting_labels_value;
-lvgl_app::Status_Labels_Value  shared_status_labels_value;
+Big_Labels_Value     shared_big_labels_value;
+Setting_Labels_Value shared_setting_labels_value;
+Status_Labels_Value  shared_status_labels_value;
 mutex_t                        shared_data_mutex;
 
 void core1_entry();
@@ -91,13 +91,13 @@ void core0_entry() {
 }
 
 void core1_entry() {
-  using namespace lvgl_app;
+  LVGL_App            app;
   Big_Labels_Value     big_labels_value;
   Setting_Labels_Value setting_labels_value;
   Status_Labels_Value  status_labels_value;
 
   lvgl_display_init();
-  app_entry();
+  app.app_entry();
 
   encoder.init();
   add_repeating_timer_us(
@@ -119,7 +119,7 @@ void core1_entry() {
     status_labels_value  = shared_status_labels_value;
     mutex_exit(&shared_data_mutex);
 
-    app_update(big_labels_value, setting_labels_value, status_labels_value);
+    app.app_update(big_labels_value, setting_labels_value, status_labels_value);
 
     undivided_encoder_value += encoder.get_value();
     encoder_value          = undivided_encoder_value / 4;
