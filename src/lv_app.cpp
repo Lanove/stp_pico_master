@@ -564,7 +564,7 @@ void LVGL_App::button_event_handler(lv_event_t *e) {
     } else if (obj == bottom_grid_buttons.cutoff_e) {
       set_setting_highlight(CutOff_E, true);
     } else if (obj == bottom_grid_buttons.settings) {
-      printf("Settings clicked");
+      modal_create_alert("Settings are not available yet", "Coming soon!");
     }
   }
 }
@@ -625,4 +625,100 @@ void LVGL_App::clear_source_highlight() {
   set_highlight_container(highlightable_containers.source_ac.container, false);
   set_highlight_container(highlightable_containers.source_dc.container, false);
   set_highlight_container(highlightable_containers.source_off.container, false);
+}
+
+lv_obj_t *LVGL_App::lvc_create_overlay() {
+  lv_obj_t *overlay = lv_obj_create(lv_scr_act());
+  lv_obj_set_size(overlay, 480, 320);
+  lv_obj_set_style_border_width(overlay, 0, 0);
+  lv_obj_set_style_radius(overlay, 0, 0);
+  lv_obj_set_style_bg_color(overlay, bs_dark, 0);
+  lv_obj_set_style_bg_opa(overlay, LV_OPA_90, 0);  // 30% opacity
+  return overlay;
+}
+
+lv_obj_t *LVGL_App::lvc_btn_init(lv_obj_t *btn, const char *labelText, lv_align_t align, lv_coord_t offsetX, lv_coord_t offsetY,
+                                 const lv_font_t *font, lv_color_t bgColor, lv_color_t textColor, lv_text_align_t alignText,
+                                 lv_label_long_mode_t longMode, lv_coord_t labelWidth, lv_coord_t btnSizeX, lv_coord_t btnSizeY) {
+  lv_obj_t *label = lv_label_create(btn);
+  lv_label_set_text_static(label, labelText);
+  lv_obj_align(btn, align, offsetX, offsetY);
+  lv_obj_set_style_text_font(label, font, 0);
+  lv_obj_set_style_bg_color(btn, bgColor, 0);
+  lv_obj_set_style_text_color(label, textColor, 0);
+  lv_obj_set_style_text_align(label, alignText, 0);
+  lv_label_set_long_mode(label, longMode);
+  if (labelWidth != 0)
+    lv_obj_set_width(label, labelWidth);
+  lv_obj_center(label);  // Center the label
+  if (labelWidth != 0)
+    lv_obj_set_width(label, labelWidth);
+  if (btnSizeX != 0)
+    lv_obj_set_width(btn, btnSizeX);
+  if (btnSizeY != 0)
+    lv_obj_set_height(btn, btnSizeY);
+  return label;
+}
+
+void LVGL_App::lvc_label_init(lv_obj_t *label, const lv_font_t *font, lv_align_t align, lv_coord_t offsetX, lv_coord_t offsetY, lv_color_t textColor,
+                              lv_text_align_t alignText, lv_label_long_mode_t longMode, lv_coord_t textWidth) {
+  lv_obj_set_style_text_color(label, textColor, 0);
+  lv_obj_set_style_text_font(label, font, 0);
+  lv_obj_set_style_text_align(label, alignText, 0);
+  lv_obj_align(label, align, offsetX, offsetY);
+  if (longMode != LV_LABEL_LONG_WRAP)  // Set long mode if set value is not defaulted
+    lv_label_set_long_mode(label, longMode);
+  if (textWidth != 0)  // Only set label width if passed textWidth value is not 0
+    lv_obj_set_width(label, textWidth);
+}
+
+lv_obj_t *
+LVGL_App::modal_create_confirm(WidgetParameterData *modalConfirmData, const char *message, const char *headerText, const lv_font_t *headerFont,
+                               const lv_font_t *messageFont, lv_color_t headerTextColor, lv_color_t textColor, lv_color_t headerColor,
+                               const char *confirmButtonText, const char *cancelButtonText, lv_coord_t xSize, lv_coord_t ySize) {
+  lv_obj_t *modal =
+      modal_create_alert(message, headerText, headerFont, messageFont, headerTextColor, textColor, headerColor, cancelButtonText, xSize, ySize);
+  lv_obj_t *okButton = lv_button_create(modal);
+  lvc_btn_init(okButton, confirmButtonText, LV_ALIGN_BOTTOM_RIGHT, -120, -15);
+  lv_obj_add_event_cb(
+      okButton,
+      [](lv_event_t *e) {
+        WidgetParameterData *modalConfirmData = (WidgetParameterData *) lv_event_get_user_data(e);
+        lv_obj_t            *btn              = (lv_obj_t *) lv_event_get_target(e);
+        lv_obj_send_event(modalConfirmData->issuer, LV_EVENT_REFRESH, modalConfirmData);
+        lv_obj_delete(lv_obj_get_parent(lv_obj_get_parent(btn)));
+      },
+      LV_EVENT_CLICKED, modalConfirmData);
+  return modal;
+}
+
+lv_obj_t *LVGL_App::modal_create_alert(const char *message, const char *headerText, const lv_font_t *headerFont, const lv_font_t *messageFont,
+                                       lv_color_t headerTextColor, lv_color_t textColor, lv_color_t headerColor, const char *buttonText,
+                                       lv_coord_t xSize, lv_coord_t ySize) {
+  lv_obj_t *overlay = lvc_create_overlay();
+
+  lv_obj_t *modal = lv_obj_create(overlay);
+  lv_obj_center(modal);
+  lv_obj_set_size(modal, xSize, ySize);
+  lv_obj_set_style_pad_all(modal, 0, 0);
+
+  lv_obj_t *modalHeader = lv_obj_create(modal);
+  lv_obj_align(modalHeader, LV_ALIGN_TOP_MID, 0, 0);
+  lv_obj_set_size(modalHeader, lv_pct(100), LV_SIZE_CONTENT);
+  lv_obj_set_style_radius(modalHeader, 0, 0);
+
+  lv_obj_set_style_bg_color(modalHeader, headerColor, 0);
+
+  lv_obj_t *warningLabel = lv_label_create(modalHeader);
+  lvc_label_init(warningLabel, &lv_font_montserrat_20, LV_ALIGN_TOP_LEFT, 0, 0, headerTextColor, LV_TEXT_ALIGN_LEFT, LV_LABEL_LONG_WRAP, lv_pct(100));
+  lv_label_set_text_static(warningLabel, headerText);
+
+  lv_obj_t *error = lv_label_create(modal);
+  lvc_label_init(error, &lv_font_montserrat_14, LV_ALIGN_CENTER, 0, 0, textColor, LV_TEXT_ALIGN_CENTER, LV_LABEL_LONG_WRAP, lv_pct(100));
+  lv_label_set_text_static(error, message);
+
+  lv_obj_t *okButton = lv_button_create(modal);
+  lvc_btn_init(okButton, buttonText, LV_ALIGN_BOTTOM_RIGHT, -15, -15);
+  lv_obj_add_event_cb(okButton, [](lv_event_t *e) { lv_obj_delete((lv_obj_t *) lv_event_get_user_data(e)); }, LV_EVENT_CLICKED, overlay);
+  return modal;
 }

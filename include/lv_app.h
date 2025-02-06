@@ -3,6 +3,7 @@
 
 #include <functional>
 
+#include "lv_colors.h"
 #include "lvgl.h"
 #include "src/misc/lv_color.h"
 #include "stdint.h"
@@ -84,6 +85,11 @@ typedef enum {
   Source_Off,
 } Source_Highlighted_Container;
 
+struct WidgetParameterData {
+  lv_obj_t *issuer;
+  void     *param;
+};
+
 class LVGL_App {
  private:
  public:
@@ -125,6 +131,25 @@ class LVGL_App {
   void      settings_screen(uint32_t delay);
   lv_obj_t *create_row_container(lv_obj_t *parent, int flex_grow, std::function<void(lv_obj_t *)> create_child_cb);
   void      home_screen(uint32_t delay);
+
+  lv_obj_t *lvc_create_overlay();
+  void lvc_label_init(lv_obj_t *label, const lv_font_t *font = &lv_font_montserrat_14, lv_align_t align = LV_ALIGN_DEFAULT, lv_coord_t offsetX = 0,
+                      lv_coord_t offsetY = 0, lv_color_t textColor = bs_dark, lv_text_align_t alignText = LV_TEXT_ALIGN_CENTER,
+                      lv_label_long_mode_t longMode = LV_LABEL_LONG_WRAP, lv_coord_t textWidth = 0);
+  lv_obj_t *lvc_btn_init(lv_obj_t *btn, const char *labelText, lv_align_t align = LV_ALIGN_DEFAULT, lv_coord_t offsetX = 0, lv_coord_t offsetY = 0,
+                         const lv_font_t *font = &lv_font_montserrat_14, lv_color_t bgColor = bs_indigo_500, lv_color_t textColor = bs_white,
+                         lv_text_align_t alignText = LV_TEXT_ALIGN_CENTER, lv_label_long_mode_t longMode = LV_LABEL_LONG_WRAP,
+                         lv_coord_t labelWidth = 0, lv_coord_t btnSizeX = 0, lv_coord_t btnSizeY = 0);
+
+  lv_obj_t *modal_create_alert(const char *message, const char *headerText = "Warning!", const lv_font_t *headerFont = &lv_font_montserrat_20,
+                               const lv_font_t *messageFont = &lv_font_montserrat_14, lv_color_t headerTextColor = bs_dark,
+                               lv_color_t textColor = bs_white, lv_color_t headerColor = bs_warning, const char *buttonText = "Ok",
+                               lv_coord_t xSize = lv_pct(70), lv_coord_t ySize = lv_pct(70));
+  lv_obj_t *modal_create_confirm(WidgetParameterData *modalConfirmData, const char *message, const char *headerText = "Warning!",
+                                 const lv_font_t *headerFont = &lv_font_montserrat_20, const lv_font_t *messageFont = &lv_font_montserrat_14,
+                                 lv_color_t headerTextColor = bs_white, lv_color_t textColor = bs_white, lv_color_t headerColor = bs_indigo_700,
+                                 const char *confirmButtonText = "Ok", const char *cancelButtonText = "Batal", lv_coord_t xSize = lv_pct(70),
+                                 lv_coord_t ySize = lv_pct(70));
 };
 
 #endif
