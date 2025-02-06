@@ -19,7 +19,7 @@ void LVGL_App::kb_create_handler(lv_event_t *e) {
   lv_obj_add_flag(this->kb, LV_OBJ_FLAG_HIDDEN);
 }
 
-void LVGL_App::hide_kb_event_cb(lv_event_t *e, lv_obj_t* cont, lv_obj_t* kb) {
+void LVGL_App::hide_kb_event_cb(lv_event_t *e, lv_obj_t *cont, lv_obj_t *kb) {
   lv_event_code_t code = lv_event_get_code(e);
   if (code == LV_EVENT_READY || code == LV_EVENT_CANCEL || code == LV_EVENT_DELETE) {
     lv_obj_set_height(cont, LV_VER_RES);
@@ -29,7 +29,7 @@ void LVGL_App::hide_kb_event_cb(lv_event_t *e, lv_obj_t* cont, lv_obj_t* kb) {
 }
 
 void LVGL_App::hide_kb_event_cb_static(lv_event_t *e) {
-  lv_obj_t *cont    = (lv_obj_t *) lv_event_get_target(e);
+  lv_obj_t *cont  = (lv_obj_t *) lv_event_get_target(e);
   lv_obj_t *kibod = (lv_obj_t *) lv_event_get_user_data(e);
   static_cast<LVGL_App *>(lv_event_get_user_data(e))->hide_kb_event_cb(e, cont, kibod);
 }
@@ -58,6 +58,38 @@ void LVGL_App::ta_event_cb(lv_event_t *e, lv_obj_t *ta, lv_obj_t *kibod) {
     lv_keyboard_set_textarea(kibod, NULL);
     lv_obj_add_flag(kibod, LV_OBJ_FLAG_HIDDEN);
     lv_obj_update_layout(kibod);
+  } else if (code == LV_EVENT_VALUE_CHANGED) {
+    const char *txt = lv_textarea_get_text(ta);
+    // Count the number of decimal points in the text
+    int decimal_count = 0;
+    if (lv_obj_has_flag(ta, LV_OBJ_FLAG_USER_1)) {
+      // Decimal formatting logic
+      int decimal_count = 0;
+      for (int i = 0; txt[i] != '\0'; i++) {
+        if (txt[i] == '.') {
+          decimal_count++;
+        }
+      }
+
+      if (decimal_count > 1) {
+        lv_textarea_delete_char(ta);  // Remove invalid input
+      } else if (txt[0] == '.') {
+        lv_textarea_set_cursor_pos(ta, 0);
+        lv_textarea_delete_char(ta);  // Prevent leading decimal point
+      }
+    } else if (lv_obj_has_flag(ta, LV_OBJ_FLAG_USER_2)) {
+      // Clock formatting logic (xx:xx:xx)
+      int colon_count = 0;
+      for (int i = 0; txt[i] != '\0'; i++) {
+        if (txt[i] == ':') {
+          colon_count++;
+        }
+      }
+
+      if (colon_count > 2) {
+        lv_textarea_delete_char(ta);  // Remove invalid input
+      }
+    }
   }
 }
 
@@ -629,13 +661,16 @@ void LVGL_App::button_event_handler(lv_event_t *e) {
     if (obj == bottom_grid_buttons.setpoint) {
       // set_setting_highlight(Setpoint, true);
       WidgetParameterData data;
-      modal_create_textbox(&data, "0", "Setpoint");
+      modal_create_number_input(&data, "", "Setpoint", FORMAT_DECIMAL);
     } else if (obj == bottom_grid_buttons.timer) {
-      set_setting_highlight(Timer, true);
+      WidgetParameterData data;
+      modal_create_number_input(&data, "", "Timer", FORMAT_CLOCK);
     } else if (obj == bottom_grid_buttons.cutoff_v) {
-      set_setting_highlight(CutOff_V, true);
+      WidgetParameterData data;
+      modal_create_number_input(&data, "", "Cutoff-V", FORMAT_DECIMAL);
     } else if (obj == bottom_grid_buttons.cutoff_e) {
-      set_setting_highlight(CutOff_E, true);
+      WidgetParameterData data;
+      modal_create_number_input(&data, "", "Cutoff-E", FORMAT_DECIMAL);
     } else if (obj == bottom_grid_buttons.settings) {
       modal_create_alert("Settings are not available yet", "Coming soon!");
     }
@@ -798,9 +833,10 @@ lv_obj_t *LVGL_App::modal_create_alert(const char *message, const char *headerTe
   return modal;
 }
 
-lv_obj_t *LVGL_App::modal_create_textbox(WidgetParameterData *data, const char *initialText, const char *headerText, const lv_font_t *headerFont,
-                                         const lv_font_t *textboxFont, lv_color_t headerTextColor, lv_color_t textColor, lv_color_t headerColor,
-                                         const char *confirmButtonText, const char *cancelButtonText, lv_coord_t xSize, lv_coord_t ySize) {
+lv_obj_t *LVGL_App::modal_create_number_input(WidgetParameterData *data, const char *initialText, const char *headerText, NumberFormatType format,
+                                              const lv_font_t *headerFont, const lv_font_t *textboxFont, lv_color_t headerTextColor,
+                                              lv_color_t textColor, lv_color_t headerColor, const char *confirmButtonText,
+                                              const char *cancelButtonText, lv_coord_t xSize, lv_coord_t ySize) {
   static char text_buffer[64];
   // Create overlay and modal container
   lv_obj_t *overlay = lvc_create_overlay();
@@ -825,15 +861,18 @@ lv_obj_t *LVGL_App::modal_create_textbox(WidgetParameterData *data, const char *
   lv_obj_t *textarea = lv_textarea_create(modal);
   lv_textarea_set_text(textarea, initialText);
   lv_textarea_set_one_line(textarea, true);
-  lv_textarea_set_accepted_chars(textarea, "0123456789.");
-  lv_obj_set_width(textarea, lv_pct(90));
+  lv_textarea_set_accepted_chars(textarea, "0123456789.:");
+  lv_obj_set_width(textarea, lv_pct(50));
+  lv_textarea_set_max_length(textarea, 8);
   lv_obj_align(textarea, LV_ALIGN_CENTER, 0, 0);
   lv_obj_set_style_text_font(textarea, textboxFont, 0);
   lv_obj_set_style_text_color(textarea, textColor, 0);
   lv_obj_add_state(textarea, LV_STATE_FOCUSED);
   lv_obj_set_style_bg_color(textarea, bs_light, LV_PART_MAIN);
   lv_obj_set_style_border_color(textarea, bs_dark, LV_PART_CURSOR | LV_STATE_FOCUSED);
-  // lv_obj_remove_event_cb(kb, kb_event_cb_static);
+  lv_obj_remove_flag(textarea, LV_OBJ_FLAG_USER_1);
+  lv_obj_remove_flag(textarea, LV_OBJ_FLAG_USER_2);
+  lv_obj_add_flag(textarea, format == FORMAT_DECIMAL ? LV_OBJ_FLAG_USER_1 : LV_OBJ_FLAG_USER_2);
   lv_obj_add_event_cb(overlay, hide_kb_event_cb_static, LV_EVENT_ALL, kb);
   lv_obj_add_event_cb(textarea, ta_event_cb_static, LV_EVENT_ALL, kb);
   lv_obj_send_event(textarea, LV_EVENT_FOCUSED, NULL);

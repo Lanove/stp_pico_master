@@ -97,6 +97,7 @@ struct WidgetParameterData {
 
 class LVGL_App {
  private:
+  typedef enum { FORMAT_DECIMAL, FORMAT_CLOCK } NumberFormatType;
  public:
   void app_entry();
   void app_update(const Big_Labels_Value &big_labels_value, const Setting_Labels_Value &setting_labels_value,
@@ -133,9 +134,9 @@ class LVGL_App {
 #endif
   void        button_event_handler(lv_event_t *e);
   void        kb_create_handler(lv_event_t *e);
-  void        hide_kb_event_cb(lv_event_t *e, lv_obj_t* cont, lv_obj_t* kb);
+  void        hide_kb_event_cb(lv_event_t *e, lv_obj_t *cont, lv_obj_t *kb);
   static void hide_kb_event_cb_static(lv_event_t *e);
-  void        ta_event_cb(lv_event_t *e, lv_obj_t *ta, lv_obj_t* kibod);
+  void        ta_event_cb(lv_event_t *e, lv_obj_t *ta, lv_obj_t *kibod);
   static void ta_event_cb_static(lv_event_t *e);
   void        clear_setting_highlight();
   void        clear_source_highlight();
@@ -164,11 +165,11 @@ class LVGL_App {
                                  lv_color_t headerTextColor = bs_white, lv_color_t textColor = bs_white,
                                  lv_color_t headerColor = lv_palette_main(LV_PALETTE_BLUE), const char *confirmButtonText = "Ok",
                                  const char *cancelButtonText = "Batal", lv_coord_t xSize = lv_pct(70), lv_coord_t ySize = lv_pct(70));
-  lv_obj_t *modal_create_textbox(WidgetParameterData *data, const char *initialText, const char *headerText,
-                                 const lv_font_t *headerFont = &lv_font_montserrat_20, const lv_font_t *textboxFont = &lv_font_montserrat_16,
-                                 lv_color_t headerTextColor = bs_white, lv_color_t textColor = bs_dark,
-                                 lv_color_t headerColor = lv_palette_main(LV_PALETTE_BLUE), const char *confirmButtonText = "Ok",
-                                 const char *cancelButtonText = "Batal", lv_coord_t xSize = lv_pct(100), lv_coord_t ySize = lv_pct(100));
+  lv_obj_t *modal_create_number_input(WidgetParameterData *data, const char *initialText, const char *headerText, NumberFormatType format,
+                                      const lv_font_t *headerFont = &lv_font_montserrat_20, const lv_font_t *textboxFont = &lv_font_montserrat_16,
+                                      lv_color_t headerTextColor = bs_white, lv_color_t textColor = bs_dark,
+                                      lv_color_t headerColor = lv_palette_main(LV_PALETTE_BLUE), const char *confirmButtonText = "Ok",
+                                      const char *cancelButtonText = "Batal", lv_coord_t xSize = lv_pct(100), lv_coord_t ySize = lv_pct(100));
 };
 
 #endif

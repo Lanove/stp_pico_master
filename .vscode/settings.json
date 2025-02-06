@@ -134,6 +134,7 @@
         "text_encoding": "cpp",
         "thread": "cpp",
         "valarray": "cpp",
-        "variant": "cpp"
+        "variant": "cpp",
+        "export": "c"
     }
 }
