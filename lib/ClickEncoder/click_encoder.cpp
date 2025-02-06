@@ -85,7 +85,7 @@ void ClickEncoder::service() {
     absolute_time_t now = get_absolute_time();
     uint64_t timeDiff = absolute_time_diff_us(last_button_check, now) / 1000;
 
-    if (timeDiff >= 10) {
+    if (timeDiff >= debounce_time) {
       last_button_check = now;
       bool btnState = gpio_get(pin_btn) == pins_active;
 

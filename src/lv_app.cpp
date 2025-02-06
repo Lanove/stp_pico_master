@@ -577,7 +577,9 @@ void LVGL_App::button_event_handler(lv_event_t *e) {
 
   if (code == LV_EVENT_CLICKED) {
     if (obj == bottom_grid_buttons.setpoint) {
-      set_setting_highlight(Setpoint, true);
+      // set_setting_highlight(Setpoint, true);
+      WidgetParameterData data;
+      modal_create_textbox(&data, "0", "Setpoint");
     } else if (obj == bottom_grid_buttons.timer) {
       set_setting_highlight(Timer, true);
     } else if (obj == bottom_grid_buttons.cutoff_v) {
@@ -741,5 +743,88 @@ lv_obj_t *LVGL_App::modal_create_alert(const char *message, const char *headerTe
   lv_obj_t *okButton = lv_button_create(modal);
   lvc_btn_init(okButton, buttonText, LV_ALIGN_BOTTOM_RIGHT, -15, -15);
   lv_obj_add_event_cb(okButton, [](lv_event_t *e) { lv_obj_delete((lv_obj_t *) lv_event_get_user_data(e)); }, LV_EVENT_CLICKED, overlay);
+  return modal;
+}
+
+lv_obj_t *LVGL_App::modal_create_textbox(WidgetParameterData *data, const char *initialText, const char *headerText, const lv_font_t *headerFont,
+                                         const lv_font_t *textboxFont, lv_color_t headerTextColor, lv_color_t textColor, lv_color_t headerColor,
+                                         const char *confirmButtonText, const char *cancelButtonText, lv_coord_t xSize, lv_coord_t ySize) {
+  static char text_buffer[64];
+  // Create overlay and modal container
+  lv_obj_t *overlay = lvc_create_overlay();
+  lv_obj_t *modal   = lv_obj_create(overlay);
+  lv_obj_center(modal);
+  lv_obj_set_size(modal, xSize, ySize);
+  lv_obj_set_style_pad_all(modal, 0, 0);
+
+  // Create header
+  lv_obj_t *header = lv_obj_create(modal);
+  lv_obj_align(header, LV_ALIGN_TOP_MID, 0, 0);
+  lv_obj_set_size(header, lv_pct(100), LV_SIZE_CONTENT);
+  lv_obj_set_style_radius(header, 0, 0);
+  lv_obj_set_style_bg_color(header, headerColor, 0);
+
+  // Header label
+  lv_obj_t *headerLabel = lv_label_create(header);
+  lvc_label_init(headerLabel, headerFont, LV_ALIGN_TOP_LEFT, 0, 0, headerTextColor, LV_TEXT_ALIGN_LEFT, LV_LABEL_LONG_WRAP, lv_pct(100));
+  lv_label_set_text_static(headerLabel, headerText);
+
+  // Create text area for numeric input
+  lv_obj_t *textarea = lv_textarea_create(modal);
+  lv_textarea_set_text(textarea, initialText);
+  lv_textarea_set_one_line(textarea, true);
+  lv_textarea_set_accepted_chars(textarea, "0123456789.");
+  lv_obj_set_width(textarea, lv_pct(90));
+  lv_obj_align(textarea, LV_ALIGN_CENTER, 0, 0);
+  lv_obj_set_style_text_font(textarea, textboxFont, 0);
+  lv_obj_set_style_text_color(textarea, textColor, 0);
+  lv_obj_add_state(textarea, LV_STATE_FOCUSED);
+  lv_obj_set_style_bg_color(textarea, bs_light, LV_PART_MAIN);
+  lv_obj_set_style_border_color(textarea, bs_dark, LV_PART_CURSOR | LV_STATE_FOCUSED);
+  // Create buttons
+  lv_obj_t *confirmBtn = lv_button_create(modal);
+  lvc_btn_init(confirmBtn, confirmButtonText, LV_ALIGN_BOTTOM_RIGHT, -15, -15);
+
+  lv_obj_t *cancelBtn = lv_button_create(modal);
+  lvc_btn_init(cancelBtn, cancelButtonText, LV_ALIGN_BOTTOM_LEFT, 15, -15);
+
+  // Custom data structure to pass through events
+  struct TextboxData {
+    WidgetParameterData *data;
+    lv_obj_t            *overlay;
+    lv_obj_t            *textarea;
+  };
+
+  TextboxData *tb_data = new TextboxData{data, overlay, textarea};
+
+  // Confirm button event handler
+  lv_obj_add_event_cb(
+      confirmBtn,
+      [](lv_event_t *e) {
+        TextboxData *d   = static_cast<TextboxData *>(lv_event_get_user_data(e));
+        const char  *txt = lv_textarea_get_text(d->textarea);
+
+        // Send text back through event
+        if (d->data) {
+          // Clone the string to ensure persistence
+          strcpy(text_buffer, txt);
+          printf("Text: %s\n", text_buffer);
+          // lv_obj_send_event(d->data->issuer, LV_EVENT_REFRESH, text_buffer);
+        }
+
+        lv_obj_delete(d->overlay);
+        delete d;
+      },
+      LV_EVENT_CLICKED, tb_data);
+
+  // Cancel button event handler
+  lv_obj_add_event_cb(
+      cancelBtn,
+      [](lv_event_t *e) {
+        lv_obj_t *overlay = static_cast<lv_obj_t *>(lv_event_get_user_data(e));
+        lv_obj_delete(overlay);
+      },
+      LV_EVENT_CLICKED, overlay);
+
   return modal;
 }

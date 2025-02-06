@@ -171,7 +171,8 @@ void core1_entry() {
     }
 
     if (b == ClickEncoder::Clicked) {
-      printf("Setpoint button clicked\n");
+      highlighted_setting = static_cast<Setting_Highlighted_Container>((highlighted_setting + 1) % 4);
+      app.set_setting_highlight(highlighted_setting, true);
     }
 
     last_encoder_value = encoder_value;

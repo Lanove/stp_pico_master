@@ -71,6 +71,8 @@ private:
     int accel_dec = 5;
     int accel_top = 16000;
 
+    int debounce_time = 5;
+
     bool get_pin_state();
     static const int8_t encoder_table[16];
 };
