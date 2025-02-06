@@ -2,7 +2,6 @@
 
 void LVGL_App::app_entry() {
   splash_screen(0);
-
   lv_theme_t *th = lv_theme_default_init(NULL,                                   /* Use DPI, size, etc. from this display */
                                          lv_palette_main(LV_PALETTE_BLUE),       /* Primary and secondary palette */
                                          lv_palette_main(LV_PALETTE_CYAN), true, /* Dark theme?  False = light theme. */
@@ -12,6 +11,54 @@ void LVGL_App::app_entry() {
 
   // Open home screen after logo showcase is done
   home_screen(splash_fadein_dur + splash_stay_dur + splash_fadeout_dur);
+}
+
+void LVGL_App::kb_create_handler(lv_event_t *e) {
+  this->kb = lv_keyboard_create(scr_home);
+  lv_keyboard_set_mode(this->kb, LV_KEYBOARD_MODE_NUMBER);
+  lv_obj_add_flag(this->kb, LV_OBJ_FLAG_HIDDEN);
+}
+
+void LVGL_App::hide_kb_event_cb(lv_event_t *e, lv_obj_t* cont, lv_obj_t* kb) {
+  lv_event_code_t code = lv_event_get_code(e);
+  if (code == LV_EVENT_READY || code == LV_EVENT_CANCEL || code == LV_EVENT_DELETE) {
+    lv_obj_set_height(cont, LV_VER_RES);
+    lv_keyboard_set_textarea(kb, NULL);
+    lv_obj_add_flag(kb, LV_OBJ_FLAG_HIDDEN);
+  }
+}
+
+void LVGL_App::hide_kb_event_cb_static(lv_event_t *e) {
+  lv_obj_t *cont    = (lv_obj_t *) lv_event_get_target(e);
+  lv_obj_t *kibod = (lv_obj_t *) lv_event_get_user_data(e);
+  static_cast<LVGL_App *>(lv_event_get_user_data(e))->hide_kb_event_cb(e, cont, kibod);
+}
+
+void LVGL_App::ta_event_cb_static(lv_event_t *e) {
+  lv_obj_t *ta    = (lv_obj_t *) lv_event_get_target(e);
+  lv_obj_t *kibod = (lv_obj_t *) lv_event_get_user_data(e);
+  static_cast<LVGL_App *>(lv_event_get_user_data(e))->ta_event_cb(e, ta, kibod);
+}
+
+void LVGL_App::ta_event_cb(lv_event_t *e, lv_obj_t *ta, lv_obj_t *kibod) {
+  lv_event_code_t code    = lv_event_get_code(e);
+  lv_obj_t       *overlay = lv_obj_get_parent(lv_obj_get_parent(ta));
+  if (code == LV_EVENT_FOCUSED) {
+    lv_obj_set_height(overlay, LV_VER_RES - lv_obj_get_height(kibod));
+    lv_obj_update_layout(overlay); /*Be sure the sizes are recalculated*/
+    lv_obj_scroll_to_view_recursive(ta, LV_ANIM_OFF);
+    lv_keyboard_set_textarea(kibod, ta);
+    lv_obj_remove_flag(kibod, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_move_foreground(kibod);
+    lv_obj_update_layout(kibod);
+  } else if (code == LV_EVENT_DEFOCUSED) {
+    printf("Defocused\n");
+    lv_obj_set_height(overlay, LV_VER_RES);
+    lv_obj_update_layout(overlay); /*Be sure the sizes are recalculated*/
+    lv_keyboard_set_textarea(kibod, NULL);
+    lv_obj_add_flag(kibod, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_update_layout(kibod);
+  }
 }
 
 void LVGL_App::splash_screen(uint32_t delay) {
@@ -63,6 +110,9 @@ void LVGL_App::home_screen(uint32_t delay) {
   static int center_grid_height = DISPLAY_SIZE_Y - top_grid_height - bottom_grid_height;
 
   scr_home = lv_obj_create(NULL);
+
+  lv_obj_add_event_cb(
+      scr_home, [](lv_event_t *e) { static_cast<LVGL_App *>(lv_event_get_user_data(e))->kb_create_handler(e); }, LV_EVENT_SCREEN_LOADED, this);
 
   lv_scr_load_anim(scr_home, LV_SCR_LOAD_ANIM_NONE, 0, delay, true);
   lv_obj_set_scrollbar_mode(scr_home, LV_SCROLLBAR_MODE_OFF);
@@ -651,8 +701,10 @@ void LVGL_App::clear_source_highlight() {
 }
 
 lv_obj_t *LVGL_App::lvc_create_overlay() {
-  lv_obj_t *overlay = lv_obj_create(lv_scr_act());
+  lv_obj_t *overlay = lv_obj_create(lv_screen_active());
   lv_obj_set_size(overlay, 480, 320);
+  lv_obj_set_style_pad_all(overlay, 0, 0);
+  lv_obj_set_style_margin_all(overlay, 0, 0);
   lv_obj_set_style_border_width(overlay, 0, 0);
   lv_obj_set_style_radius(overlay, 0, 0);
   lv_obj_set_style_bg_color(overlay, bs_dark, 0);
@@ -781,6 +833,11 @@ lv_obj_t *LVGL_App::modal_create_textbox(WidgetParameterData *data, const char *
   lv_obj_add_state(textarea, LV_STATE_FOCUSED);
   lv_obj_set_style_bg_color(textarea, bs_light, LV_PART_MAIN);
   lv_obj_set_style_border_color(textarea, bs_dark, LV_PART_CURSOR | LV_STATE_FOCUSED);
+  // lv_obj_remove_event_cb(kb, kb_event_cb_static);
+  lv_obj_add_event_cb(overlay, hide_kb_event_cb_static, LV_EVENT_ALL, kb);
+  lv_obj_add_event_cb(textarea, ta_event_cb_static, LV_EVENT_ALL, kb);
+  lv_obj_send_event(textarea, LV_EVENT_FOCUSED, NULL);
+
   // Create buttons
   lv_obj_t *confirmBtn = lv_button_create(modal);
   lvc_btn_init(confirmBtn, confirmButtonText, LV_ALIGN_BOTTOM_RIGHT, -15, -15);

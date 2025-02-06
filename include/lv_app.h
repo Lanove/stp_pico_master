@@ -1,6 +1,9 @@
 #ifndef LV_APP_HPP
 #define LV_APP_HPP
 
+#include <stdio.h>
+#include <stdlib.h>
+
 #include <functional>
 
 #include "lv_colors.h"
@@ -9,8 +12,6 @@
 #include "stdint.h"
 #include "stdio.h"
 #include "string.h"
-#include <stdio.h>
-#include <stdlib.h>
 
 LV_IMG_DECLARE(STP_SPLASH);
 #define DISPLAY_SIZE_Y 320
@@ -91,7 +92,7 @@ typedef enum {
 
 struct WidgetParameterData {
   lv_obj_t *issuer = NULL;
-  void     *param = NULL;
+  void     *param  = NULL;
 };
 
 class LVGL_App {
@@ -109,6 +110,7 @@ class LVGL_App {
  private:
   const char *bottom_home_btns[5] = {"Setpoint", "Cut-off V", "Cut-off E", "Timer", "Settings"};
   lv_obj_t   *scr_home;
+  lv_obj_t   *kb;
 
   Setting_Highlighted_Container setting_highlight;
   Source_Highlighted_Container  source_highlight;
@@ -129,23 +131,29 @@ class LVGL_App {
   static constexpr uint32_t splash_stay_dur    = 0;
   static constexpr uint32_t splash_fadeout_dur = 0;
 #endif
-  void      button_event_handler(lv_event_t *e);
-  void      clear_setting_highlight();
-  void      clear_source_highlight();
-  void      set_highlight_container(lv_obj_t *container, bool highlight);
-  void      splash_screen(uint32_t delay);
-  void      settings_screen(uint32_t delay);
-  lv_obj_t *create_row_container(lv_obj_t *parent, int flex_grow, std::function<void(lv_obj_t *)> create_child_cb);
-  void      home_screen(uint32_t delay);
+  void        button_event_handler(lv_event_t *e);
+  void        kb_create_handler(lv_event_t *e);
+  void        hide_kb_event_cb(lv_event_t *e, lv_obj_t* cont, lv_obj_t* kb);
+  static void hide_kb_event_cb_static(lv_event_t *e);
+  void        ta_event_cb(lv_event_t *e, lv_obj_t *ta, lv_obj_t* kibod);
+  static void ta_event_cb_static(lv_event_t *e);
+  void        clear_setting_highlight();
+  void        clear_source_highlight();
+  void        set_highlight_container(lv_obj_t *container, bool highlight);
+  void        splash_screen(uint32_t delay);
+  void        settings_screen(uint32_t delay);
+  lv_obj_t   *create_row_container(lv_obj_t *parent, int flex_grow, std::function<void(lv_obj_t *)> create_child_cb);
+  void        home_screen(uint32_t delay);
 
   lv_obj_t *lvc_create_overlay();
   void lvc_label_init(lv_obj_t *label, const lv_font_t *font = &lv_font_montserrat_14, lv_align_t align = LV_ALIGN_DEFAULT, lv_coord_t offsetX = 0,
                       lv_coord_t offsetY = 0, lv_color_t textColor = bs_dark, lv_text_align_t alignText = LV_TEXT_ALIGN_CENTER,
                       lv_label_long_mode_t longMode = LV_LABEL_LONG_WRAP, lv_coord_t textWidth = 0);
-  lv_obj_t *lvc_btn_init(lv_obj_t *btn, const char *labelText, lv_align_t align = LV_ALIGN_DEFAULT, lv_coord_t offsetX = 0, lv_coord_t offsetY = 0,
-                         const lv_font_t *font = &lv_font_montserrat_14, lv_color_t bgColor = lv_palette_main(LV_PALETTE_BLUE), lv_color_t textColor = bs_white,
-                         lv_text_align_t alignText = LV_TEXT_ALIGN_CENTER, lv_label_long_mode_t longMode = LV_LABEL_LONG_WRAP,
-                         lv_coord_t labelWidth = 0, lv_coord_t btnSizeX = 0, lv_coord_t btnSizeY = 0);
+  lv_obj_t *
+  lvc_btn_init(lv_obj_t *btn, const char *labelText, lv_align_t align = LV_ALIGN_DEFAULT, lv_coord_t offsetX = 0, lv_coord_t offsetY = 0,
+               const lv_font_t *font = &lv_font_montserrat_14, lv_color_t bgColor = lv_palette_main(LV_PALETTE_BLUE), lv_color_t textColor = bs_white,
+               lv_text_align_t alignText = LV_TEXT_ALIGN_CENTER, lv_label_long_mode_t longMode = LV_LABEL_LONG_WRAP, lv_coord_t labelWidth = 0,
+               lv_coord_t btnSizeX = 0, lv_coord_t btnSizeY = 0);
 
   lv_obj_t *modal_create_alert(const char *message, const char *headerText = "Warning!", const lv_font_t *headerFont = &lv_font_montserrat_20,
                                const lv_font_t *messageFont = &lv_font_montserrat_14, lv_color_t headerTextColor = bs_dark,
@@ -153,14 +161,14 @@ class LVGL_App {
                                lv_coord_t xSize = lv_pct(70), lv_coord_t ySize = lv_pct(70));
   lv_obj_t *modal_create_confirm(WidgetParameterData *modalConfirmData, const char *message, const char *headerText = "Warning!",
                                  const lv_font_t *headerFont = &lv_font_montserrat_20, const lv_font_t *messageFont = &lv_font_montserrat_14,
-                                 lv_color_t headerTextColor = bs_white, lv_color_t textColor = bs_white, lv_color_t headerColor = lv_palette_main(LV_PALETTE_BLUE),
-                                 const char *confirmButtonText = "Ok", const char *cancelButtonText = "Batal", lv_coord_t xSize = lv_pct(70),
-                                 lv_coord_t ySize = lv_pct(70));
+                                 lv_color_t headerTextColor = bs_white, lv_color_t textColor = bs_white,
+                                 lv_color_t headerColor = lv_palette_main(LV_PALETTE_BLUE), const char *confirmButtonText = "Ok",
+                                 const char *cancelButtonText = "Batal", lv_coord_t xSize = lv_pct(70), lv_coord_t ySize = lv_pct(70));
   lv_obj_t *modal_create_textbox(WidgetParameterData *data, const char *initialText, const char *headerText,
                                  const lv_font_t *headerFont = &lv_font_montserrat_20, const lv_font_t *textboxFont = &lv_font_montserrat_16,
-                                 lv_color_t headerTextColor = bs_white, lv_color_t textColor = bs_dark, lv_color_t headerColor = lv_palette_main(LV_PALETTE_BLUE),
-                                 const char *confirmButtonText = "Ok", const char *cancelButtonText = "Batal", lv_coord_t xSize = lv_pct(70),
-                                 lv_coord_t ySize = lv_pct(70));
+                                 lv_color_t headerTextColor = bs_white, lv_color_t textColor = bs_dark,
+                                 lv_color_t headerColor = lv_palette_main(LV_PALETTE_BLUE), const char *confirmButtonText = "Ok",
+                                 const char *cancelButtonText = "Batal", lv_coord_t xSize = lv_pct(100), lv_coord_t ySize = lv_pct(100));
 };
 
 #endif
