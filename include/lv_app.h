@@ -16,6 +16,7 @@ LV_IMG_DECLARE(STP_SPLASH);
 
 struct Highlightable_Container {
   lv_obj_t *label;
+  lv_obj_t *label2;
   lv_obj_t *container;
 };
 
@@ -59,10 +60,10 @@ struct Big_Labels_Value {
 };
 
 struct Setting_Labels_Value {
-  float    setpoint;
-  uint32_t timer;
-  float    cutoff_v;
-  float    cutoff_e;
+  float   setpoint;
+  int32_t timer;
+  float   cutoff_v;
+  float   cutoff_e;
 };
 
 struct Status_Labels_Value {
@@ -97,8 +98,10 @@ class LVGL_App {
   void app_update(const Big_Labels_Value &big_labels_value, const Setting_Labels_Value &setting_labels_value,
                   const Status_Labels_Value &status_labels_value);
 
+  Setting_Highlighted_Container get_highlighted_setting() { return setting_highlight; }
+
  private:
-  const char *bottom_home_btns[5] = {"Setpoint", "Timer", "Cut-off V", "Cut-off E", "Settings"};
+  const char *bottom_home_btns[5] = {"Setpoint", "Cut-off V", "Cut-off E", "Timer", "Settings"};
   lv_obj_t   *scr_home;
 
   Setting_Highlighted_Container setting_highlight;

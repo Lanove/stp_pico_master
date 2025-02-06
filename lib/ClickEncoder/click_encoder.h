@@ -41,25 +41,35 @@ public:
     void set_hold_time(uint16_t ms) { button_hold_time = ms; }
     void set_double_click_enabled(bool d) { double_click_enabled = d; }
     void set_button_held_enabled(bool d) { button_held_enabled = d; }
+    void set_enable_acceleration(bool a) { acceleration_enabled = a; }
+    void set_acceleration_properties(int inc, int dec, int top) {
+        accel_inc = inc;
+        accel_dec = dec;
+        accel_top = top;
+    }
 
 private:
     uint8_t pin_a, pin_b, pin_btn;
     bool pins_active;
-    volatile int16_t delta;
-    volatile int16_t last;
-    volatile uint8_t steps;
-    volatile uint16_t acceleration;
+    int32_t delta;
+    int32_t last;
+    uint16_t steps;
+    int32_t acceleration;
     bool acceleration_enabled;
 
     // Button state
     volatile Button button;
     bool double_click_enabled = true;
     bool button_held_enabled = true;
-    uint16_t button_hold_time = BTN_HOLDTIME;
-    uint16_t button_double_click_time = BTN_DOUBLECLICKTIME;
+    uint32_t button_hold_time = BTN_HOLDTIME;
+    uint32_t button_double_click_time = BTN_DOUBLECLICKTIME;
     absolute_time_t last_button_check = nil_time;
     uint32_t keydown_ticks = 0;
     uint32_t doubleclick_ticks = 0;
+
+    int accel_inc = 200;
+    int accel_dec = 5;
+    int accel_top = 16000;
 
     bool get_pin_state();
     static const int8_t encoder_table[16];

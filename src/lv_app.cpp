@@ -221,8 +221,9 @@ void LVGL_App::home_screen(uint32_t delay) {
     // Create the third label (align right)
     lv_obj_t *small_label_right = lv_label_create(row_container);
     lv_label_set_text_fmt(small_label_right, "(%d%s)", 0, "%");
-    lv_obj_set_style_text_font(small_label_right, &lv_font_montserrat_16, 0);
+    lv_obj_set_style_text_font(small_label_right, &lv_font_montserrat_14, 0);
     lv_obj_set_flex_grow(small_label_right, 2);
+    highlightable_containers.setpoint.label2 = small_label_right;
   });
 
   create_row_container(left_ctr_grid, 1, [this](lv_obj_t *row_container) {
@@ -344,9 +345,9 @@ void LVGL_App::home_screen(uint32_t delay) {
     lv_label_set_text_fmt(cutoff_label, "Cut-Off V:");
     lv_obj_set_style_text_font(cutoff_label, &lv_font_montserrat_16,
                                0);  // Use a smaller font for small text
-    lv_obj_set_flex_grow(cutoff_label, 3);
+    lv_obj_set_flex_grow(cutoff_label, 5);
 
-    create_row_container(row_container, 2, [this](lv_obj_t *row_container) {
+    create_row_container(row_container, 5, [this](lv_obj_t *row_container) {
       lv_obj_set_style_bg_color(row_container, lv_palette_main(LV_PALETTE_BLUE), 0);
       lv_obj_set_style_bg_opa(row_container, LV_OPA_TRANSP, 0);
 
@@ -366,7 +367,7 @@ void LVGL_App::home_screen(uint32_t delay) {
     lv_obj_t *small_label_right = lv_label_create(row_container);
     lv_label_set_text_fmt(small_label_right, "V");
     lv_obj_set_style_text_font(small_label_right, &lv_font_montserrat_16, 0);
-    lv_obj_set_flex_grow(small_label_right, 1);
+    lv_obj_set_flex_grow(small_label_right, 2);
   });
 
   create_row_container(right_ctr_grid, 2, [this](lv_obj_t *row_container) {
@@ -377,9 +378,9 @@ void LVGL_App::home_screen(uint32_t delay) {
     lv_label_set_text_fmt(cutoff_label, "Cut-Off E:");
     lv_obj_set_style_text_font(cutoff_label, &lv_font_montserrat_16,
                                0);  // Use a smaller font for small text
-    lv_obj_set_flex_grow(cutoff_label, 3);
+    lv_obj_set_flex_grow(cutoff_label, 5);
 
-    create_row_container(row_container, 2, [this](lv_obj_t *row_container) {
+    create_row_container(row_container, 5, [this](lv_obj_t *row_container) {
       lv_obj_set_style_bg_color(row_container, lv_palette_main(LV_PALETTE_BLUE), 0);
       lv_obj_set_style_bg_opa(row_container, LV_OPA_TRANSP, 0);
 
@@ -390,7 +391,7 @@ void LVGL_App::home_screen(uint32_t delay) {
       // Create the third label (align right)
       lv_obj_t *small_label_right = lv_label_create(row_container);
       lv_label_set_text_fmt(small_label_right, "Off");
-      lv_obj_set_style_text_font(small_label_right, &lv_font_montserrat_16, 0);
+      lv_obj_set_style_text_font(small_label_right, &lv_font_montserrat_14, 0);
       highlightable_containers.cutoff_e.container = row_container;
       highlightable_containers.cutoff_e.label     = small_label_right;
     });
@@ -399,7 +400,7 @@ void LVGL_App::home_screen(uint32_t delay) {
     lv_obj_t *small_label_right = lv_label_create(row_container);
     lv_label_set_text_fmt(small_label_right, "Wh");
     lv_obj_set_style_text_font(small_label_right, &lv_font_montserrat_16, 0);
-    lv_obj_set_flex_grow(small_label_right, 1);
+    lv_obj_set_flex_grow(small_label_right, 2);
   });
 
   create_row_container(right_ctr_grid, 2, [this](lv_obj_t *row_container) {
@@ -475,11 +476,11 @@ void LVGL_App::home_screen(uint32_t delay) {
     if (i == 0) {
       bottom_grid_buttons.setpoint = btn;
     } else if (i == 1) {
-      bottom_grid_buttons.timer = btn;
-    } else if (i == 2) {
       bottom_grid_buttons.cutoff_v = btn;
-    } else if (i == 3) {
+    } else if (i == 2) {
       bottom_grid_buttons.cutoff_e = btn;
+    } else if (i == 3) {
+      bottom_grid_buttons.timer = btn;
     } else if (i == 4) {
       bottom_grid_buttons.settings = btn;
     }
@@ -525,23 +526,43 @@ void LVGL_App::app_update(const Big_Labels_Value &big_labels_value, const Settin
   }
 
   if (setting_labels_value.setpoint != prev_setting_labels_value.setpoint) {
-    snprintf(temp_str, sizeof(temp_str), "%.1fW", setting_labels_value.setpoint);
+    const float resistance_map[] = {1e20,     80.,      80. / 2,  80. / 3,  80. / 4,  80. / 5,  80. / 6,  80. / 7,  80. / 8,  80. / 9, 80. / 10,
+                                    80. / 11, 80. / 12, 80. / 13, 80. / 14, 80. / 15, 80. / 16, 80. / 17, 80. / 18, 80. / 19, 80. / 20};
+    int         resistance_idx   = (int) setting_labels_value.setpoint / 5.;
+    float       wattage_estimate = ((big_labels_value.v * big_labels_value.v) / resistance_map[resistance_idx]);
+
+    if (wattage_estimate > 1.)
+      snprintf(temp_str, sizeof(temp_str), "%.1fW", wattage_estimate);
+    else
+      snprintf(temp_str, sizeof(temp_str), "-");
     lv_label_set_text(highlightable_containers.setpoint.label, temp_str);
+
+    snprintf(temp_str, sizeof(temp_str), "(%d%s)", (int) setting_labels_value.setpoint, "%");
+    lv_label_set_text(highlightable_containers.setpoint.label2, temp_str);
   }
 
   if (setting_labels_value.cutoff_v != prev_setting_labels_value.cutoff_v) {
-    snprintf(temp_str, sizeof(temp_str), "%.1fV", setting_labels_value.cutoff_v);
+    if (setting_labels_value.cutoff_v == 0)
+      snprintf(temp_str, sizeof(temp_str), "Off");
+    else
+      snprintf(temp_str, sizeof(temp_str), "%.1fV", setting_labels_value.cutoff_v);
     lv_label_set_text(highlightable_containers.cutoff_v.label, temp_str);
   }
 
   if (setting_labels_value.cutoff_e != prev_setting_labels_value.cutoff_e) {
-    snprintf(temp_str, sizeof(temp_str), "%.0fWh", setting_labels_value.cutoff_e);
+    if (setting_labels_value.cutoff_e == 0)
+      snprintf(temp_str, sizeof(temp_str), "Off");
+    else
+      snprintf(temp_str, sizeof(temp_str), "%.0f", setting_labels_value.cutoff_e);
     lv_label_set_text(highlightable_containers.cutoff_e.label, temp_str);
   }
 
   if (setting_labels_value.timer != prev_setting_labels_value.timer) {
-    snprintf(temp_str, sizeof(temp_str), "%02d:%02d:%02d", setting_labels_value.timer / 3600, (setting_labels_value.timer % 3600) / 60,
-             setting_labels_value.timer % 60);
+    if (setting_labels_value.timer == 0)
+      snprintf(temp_str, sizeof(temp_str), "Off");
+    else
+      snprintf(temp_str, sizeof(temp_str), "%02d:%02d:%02d", setting_labels_value.timer / 3600, (setting_labels_value.timer % 3600) / 60,
+               setting_labels_value.timer % 60);
     lv_label_set_text(highlightable_containers.timer.label, temp_str);
   }
 

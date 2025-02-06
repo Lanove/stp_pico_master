@@ -1,9 +1,5 @@
 #include "click_encoder.h"
 
-#define ENC_ACCEL_TOP 16000 // max. acceleration: *12 (val >> 8)
-#define ENC_ACCEL_INC 200
-#define ENC_ACCEL_DEC 5
-
 const int8_t ClickEncoder::encoder_table[16] = {0, 0, -1, 0, 0, 0,  0, 1,
                                                1, 0, 0,  0, 0, -1, 0, 0};
 
@@ -44,10 +40,9 @@ void ClickEncoder::service() {
 
   if (pin_a >= 0 && pin_b >= 0) {
     if (acceleration_enabled) { // decelerate every tick
-      acceleration -= ENC_ACCEL_DEC;
-      if (acceleration & 0x8000) { // handle overflow of MSB is set
+      acceleration -= accel_dec;
+      if(acceleration < 0)
         acceleration = 0;
-      }
     }
     int8_t curr = 0;
 
@@ -79,8 +74,8 @@ void ClickEncoder::service() {
       moved = true;        // Flag that movement occurred
 
       // Handle acceleration if enabled
-      if (acceleration_enabled && acceleration <= (16000 - 200)) {
-        acceleration += 200;
+      if (acceleration_enabled && acceleration <= (accel_top - accel_inc)) {
+        acceleration += accel_inc;
       }
     }
   }
@@ -139,7 +134,7 @@ int16_t ClickEncoder::get_value() {
 
   // Apply acceleration
   if (acceleration_enabled) {
-    val *= 1 + (acceleration >> 8);
+    val *= 1 + (acceleration >> 4);
   }
 
   return val;

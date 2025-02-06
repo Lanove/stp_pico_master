@@ -43,10 +43,18 @@ PZEM017::measurement_t pzem017_measurement;
 Big_Labels_Value     shared_big_labels_value;
 Setting_Labels_Value shared_setting_labels_value;
 Status_Labels_Value  shared_status_labels_value;
-mutex_t                        shared_data_mutex;
+mutex_t              shared_data_mutex;
 
 void core1_entry();
 void core0_entry();
+
+template <typename T>
+void apply_min_max(T &value, T min, T max) {
+  if (value < min)
+    value = min;
+  if (value > max)
+    value = max;
+}
 
 int main() {
   stdio_init_all();
@@ -91,7 +99,7 @@ void core0_entry() {
 }
 
 void core1_entry() {
-  LVGL_App            app;
+  LVGL_App             app;
   Big_Labels_Value     big_labels_value;
   Setting_Labels_Value setting_labels_value;
   Status_Labels_Value  status_labels_value;
@@ -111,12 +119,15 @@ void core1_entry() {
   int encoder_value           = 0;
   int last_encoder_value      = 0;
   int undivided_encoder_value = 0;
+  int encoder_delta           = 0;
 
+  encoder.set_enable_acceleration(true);
   while (true) {
     mutex_enter_blocking(&shared_data_mutex);
     big_labels_value     = shared_big_labels_value;
     setting_labels_value = shared_setting_labels_value;
     status_labels_value  = shared_status_labels_value;
+    big_labels_value.v = 220;
     mutex_exit(&shared_data_mutex);
 
     app.app_update(big_labels_value, setting_labels_value, status_labels_value);
@@ -124,8 +135,43 @@ void core1_entry() {
     undivided_encoder_value += encoder.get_value();
     encoder_value          = undivided_encoder_value / 4;
     ClickEncoder::Button b = encoder.get_button();
+
+    encoder_delta = encoder_value - last_encoder_value;
+    if(encoder_delta != 0)
+      printf("Encoder delta: %d\n", encoder_delta);
     if (encoder_value != last_encoder_value) {
       printf("Encoder value: %d\n", encoder_value);
+    }
+
+    Setting_Highlighted_Container highlighted_setting = app.get_highlighted_setting();
+    switch (highlighted_setting) {
+    case Setpoint:
+      encoder.set_enable_acceleration(false);
+      shared_setting_labels_value.setpoint += encoder_delta * 5.0;
+      apply_min_max<float>(shared_setting_labels_value.setpoint, 0.0, 100.0);
+      break;
+    case Timer:
+      encoder.set_enable_acceleration(true);
+      encoder.set_acceleration_properties(300, 5, 64000);
+      shared_setting_labels_value.timer += encoder_delta;
+      apply_min_max<int32_t>(shared_setting_labels_value.timer, 0, 1000000);
+      break;
+    case CutOff_V:
+      encoder.set_enable_acceleration(true);
+      encoder.set_acceleration_properties(200, 10, 16000);
+      shared_setting_labels_value.cutoff_v += encoder_delta * 0.1;
+      apply_min_max<float>(shared_setting_labels_value.cutoff_v, 0.0, 300.0);
+      break;
+    case CutOff_E:
+      encoder.set_enable_acceleration(true);
+      encoder.set_acceleration_properties(400, 10, 32000);
+      shared_setting_labels_value.cutoff_e += encoder_delta * 1.0;
+      apply_min_max<float>(shared_setting_labels_value.cutoff_e, 0.0, 1000000.0);
+      break;
+    }
+
+    if (b == ClickEncoder::Clicked) {
+      printf("Setpoint button clicked\n");
     }
 
     last_encoder_value = encoder_value;
