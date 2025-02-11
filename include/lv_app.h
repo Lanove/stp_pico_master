@@ -90,14 +90,31 @@ typedef enum {
   Source_Off,
 } Source_Highlighted_Container;
 
+typedef enum {
+  MODAL_CONFIRM_EVENT,
+  PROPAGATE_CUTOFF_E,
+  PROPAGATE_CUTOFF_V,
+  PROPAGATE_SETPOINT,
+  PROPAGATE_TIMER,
+} EventType;
+
 struct WidgetParameterData {
   lv_obj_t *issuer = NULL;
   void     *param  = NULL;
 };
 
+// Custom data structure to pass through events
+struct EventData {
+  WidgetParameterData *data;
+  lv_obj_t            *overlay;
+  lv_obj_t            *textarea;
+  EventType            event_type;
+};
+
 class LVGL_App {
  private:
   typedef enum { FORMAT_DECIMAL, FORMAT_CLOCK } NumberFormatType;
+
  public:
   void app_entry();
   void app_update(const Big_Labels_Value &big_labels_value, const Setting_Labels_Value &setting_labels_value,
@@ -108,6 +125,14 @@ class LVGL_App {
 
   Setting_Highlighted_Container get_highlighted_setting() { return setting_highlight; }
 
+  void attach_internal_changes_cb(std::function<void(EventData *)> internal_changes_cb) { this->internal_changes_cb = internal_changes_cb; }
+
+  lv_obj_t *modal_create_alert(const char *message, const char *headerText = "Warning!", const lv_font_t *headerFont = &lv_font_montserrat_20,
+                               const lv_font_t *messageFont = &lv_font_montserrat_14, lv_color_t headerTextColor = bs_dark,
+                               lv_color_t textColor = bs_white, lv_color_t headerColor = bs_warning, const char *buttonText = "Ok",
+                               lv_coord_t xSize = lv_pct(70), lv_coord_t ySize = lv_pct(70));
+                               
+
  private:
   const char *bottom_home_btns[5] = {"Setpoint", "Cut-off V", "Cut-off E", "Timer", "Settings"};
   lv_obj_t   *scr_home;
@@ -116,10 +141,11 @@ class LVGL_App {
   Setting_Highlighted_Container setting_highlight;
   Source_Highlighted_Container  source_highlight;
 
-  Highlightable_Containers highlightable_containers;
-  Big_Labels               big_labels;
-  Top_Grid_Labels          top_grid_labels;
-  Bottom_Grid_Buttons      bottom_grid_buttons;
+  Highlightable_Containers         highlightable_containers;
+  Big_Labels                       big_labels;
+  Top_Grid_Labels                  top_grid_labels;
+  Bottom_Grid_Buttons              bottom_grid_buttons;
+  std::function<void(EventData *)> internal_changes_cb = nullptr;
 
   static constexpr uint32_t anim_time          = 500;
   static constexpr uint32_t anim_translation_y = 150;
@@ -133,7 +159,10 @@ class LVGL_App {
   static constexpr uint32_t splash_fadeout_dur = 0;
 #endif
   void        button_event_handler(lv_event_t *e);
+  void        ta_event_setting_handler(lv_event_t *e, EventData *tb);
   void        kb_create_handler(lv_event_t *e);
+  static void kb_custom_event_cb_static(lv_event_t *e);
+  void        kb_custom_event_cb(lv_event_t *e, lv_obj_t *kb, lv_obj_t *ta);
   void        hide_kb_event_cb(lv_event_t *e, lv_obj_t *cont, lv_obj_t *kb);
   static void hide_kb_event_cb_static(lv_event_t *e);
   void        ta_event_cb(lv_event_t *e, lv_obj_t *ta, lv_obj_t *kibod);
@@ -156,10 +185,6 @@ class LVGL_App {
                lv_text_align_t alignText = LV_TEXT_ALIGN_CENTER, lv_label_long_mode_t longMode = LV_LABEL_LONG_WRAP, lv_coord_t labelWidth = 0,
                lv_coord_t btnSizeX = 0, lv_coord_t btnSizeY = 0);
 
-  lv_obj_t *modal_create_alert(const char *message, const char *headerText = "Warning!", const lv_font_t *headerFont = &lv_font_montserrat_20,
-                               const lv_font_t *messageFont = &lv_font_montserrat_14, lv_color_t headerTextColor = bs_dark,
-                               lv_color_t textColor = bs_white, lv_color_t headerColor = bs_warning, const char *buttonText = "Ok",
-                               lv_coord_t xSize = lv_pct(70), lv_coord_t ySize = lv_pct(70));
   lv_obj_t *modal_create_confirm(WidgetParameterData *modalConfirmData, const char *message, const char *headerText = "Warning!",
                                  const lv_font_t *headerFont = &lv_font_montserrat_20, const lv_font_t *messageFont = &lv_font_montserrat_14,
                                  lv_color_t headerTextColor = bs_white, lv_color_t textColor = bs_white,

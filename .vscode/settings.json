@@ -135,6 +135,8 @@
         "thread": "cpp",
         "valarray": "cpp",
         "variant": "cpp",
-        "export": "c"
+        "export": "c",
+        "lv_keyboard_private.h": "c",
+        "math": "cpp"
     }
 }

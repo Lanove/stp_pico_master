@@ -10,6 +10,7 @@
 #include "ili9486_drivers.h"
 #include "lv_app.h"
 #include "lv_drivers.h"
+#include "math.h"
 #include "modbus_master.h"
 #include "pico/multicore.h"
 #include "pico/stdlib.h"
@@ -47,6 +48,7 @@ mutex_t              shared_data_mutex;
 
 void core1_entry();
 void core0_entry();
+void changes_cb(EventData *data);
 
 template <typename T>
 void apply_min_max(T &value, T min, T max) {
@@ -122,22 +124,21 @@ void core1_entry() {
   int encoder_delta           = 0;
 
   encoder.set_enable_acceleration(true);
+  app.attach_internal_changes_cb(changes_cb);
   while (true) {
     mutex_enter_blocking(&shared_data_mutex);
+
     big_labels_value     = shared_big_labels_value;
     setting_labels_value = shared_setting_labels_value;
     status_labels_value  = shared_status_labels_value;
-    big_labels_value.v = 220;
-    mutex_exit(&shared_data_mutex);
-
-    app.app_update(big_labels_value, setting_labels_value, status_labels_value);
+    big_labels_value.v   = 220;
 
     undivided_encoder_value += encoder.get_value();
     encoder_value          = undivided_encoder_value / 4;
     ClickEncoder::Button b = encoder.get_button();
 
     encoder_delta = encoder_value - last_encoder_value;
-    if(encoder_delta != 0)
+    if (encoder_delta != 0)
       printf("Encoder delta: %d\n", encoder_delta);
     if (encoder_value != last_encoder_value) {
       printf("Encoder value: %d\n", encoder_value);
@@ -177,8 +178,45 @@ void core1_entry() {
 
     last_encoder_value = encoder_value;
 
+    mutex_exit(&shared_data_mutex);
+
+    app.app_update(big_labels_value, setting_labels_value, status_labels_value);
+
     lv_timer_handler();
     sleep_ms(5);
   }
   return;
+}
+
+void changes_cb(EventData *ed) {
+  const char *txt = lv_textarea_get_text(ed->textarea);
+  double      data;
+  mutex_enter_blocking(&shared_data_mutex);
+  switch (ed->event_type) {
+  case PROPAGATE_CUTOFF_E:
+    data = atof(txt);
+    apply_min_max<double>(data, 0.0, 1000000.0);
+    shared_setting_labels_value.cutoff_e = data;
+    break;
+  case PROPAGATE_CUTOFF_V:
+    data = atof(txt);
+    apply_min_max<double>(data, 0.0, 300.0);
+    shared_setting_labels_value.cutoff_v = data;
+    break;
+  case PROPAGATE_SETPOINT:
+    data = atof(txt);
+    apply_min_max<double>(data, 0.0, 100.0);
+    data                                 = round(data / 5.0) * 5.0;
+    shared_setting_labels_value.setpoint = data;
+    break;
+  case PROPAGATE_TIMER:
+    int hour = 0, minute = 0, second = 0;
+    sscanf(txt, "%d:%d:%d", &hour, &minute, &second);
+    apply_min_max<int>(hour, 0, 99);
+    apply_min_max<int>(minute, 0, 59);
+    apply_min_max<int>(second, 0, 59);
+    shared_setting_labels_value.timer = hour * 3600 + minute * 60 + second;
+    break;
+  }
+  mutex_exit(&shared_data_mutex);
 }

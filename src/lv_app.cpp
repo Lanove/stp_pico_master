@@ -1,5 +1,41 @@
 #include "lv_app.h"
 
+#include "src/widgets/keyboard/lv_keyboard.h"
+
+static const char *const kb_map_num[] = {"1",
+                                         "2",
+                                         "3",
+                                         " ",
+                                         "\n",
+                                         "4",
+                                         "5",
+                                         "6",
+                                         LV_SYMBOL_TRASH,
+                                         "\n",
+                                         "7",
+                                         "8",
+                                         "9",
+                                         LV_SYMBOL_BACKSPACE,
+                                         "\n",
+                                         "+/-",
+                                         "0",
+                                         ".",
+                                         LV_SYMBOL_LEFT,
+                                         LV_SYMBOL_RIGHT,
+                                         ""};
+
+static const lv_buttonmatrix_ctrl_t kb_ctrl_num_map[] = {(lv_buttonmatrix_ctrl_t) 1, (lv_buttonmatrix_ctrl_t) 1,
+                                                         (lv_buttonmatrix_ctrl_t) 1, (lv_buttonmatrix_ctrl_t) (LV_BUTTONMATRIX_CTRL_DISABLED | 2),
+                                                         (lv_buttonmatrix_ctrl_t) 1, (lv_buttonmatrix_ctrl_t) 1,
+                                                         (lv_buttonmatrix_ctrl_t) 1, (lv_buttonmatrix_ctrl_t) (LV_KEYBOARD_CTRL_BUTTON_FLAGS | 2),
+                                                         (lv_buttonmatrix_ctrl_t) 1, (lv_buttonmatrix_ctrl_t) 1,
+                                                         (lv_buttonmatrix_ctrl_t) 1, (lv_buttonmatrix_ctrl_t) 2,
+                                                         (lv_buttonmatrix_ctrl_t) 1, (lv_buttonmatrix_ctrl_t) 1,
+                                                         (lv_buttonmatrix_ctrl_t) 1, (lv_buttonmatrix_ctrl_t) 1,
+                                                         (lv_buttonmatrix_ctrl_t) 1};
+
+uint32_t LV_EVENT_TA_SETTING = lv_event_register_id();
+
 void LVGL_App::app_entry() {
   splash_screen(0);
   lv_theme_t *th = lv_theme_default_init(NULL,                                   /* Use DPI, size, etc. from this display */
@@ -15,8 +51,36 @@ void LVGL_App::app_entry() {
 
 void LVGL_App::kb_create_handler(lv_event_t *e) {
   this->kb = lv_keyboard_create(scr_home);
-  lv_keyboard_set_mode(this->kb, LV_KEYBOARD_MODE_NUMBER);
+  // lv_keyboard_set_mode(this->kb, LV_KEYBOARD_MODE_NUMBER);
+  lv_keyboard_set_map(this->kb, LV_KEYBOARD_MODE_TEXT_LOWER, (const char **) kb_map_num, kb_ctrl_num_map);
   lv_obj_add_flag(this->kb, LV_OBJ_FLAG_HIDDEN);
+  lv_obj_add_event_cb(
+      this->kb, [](lv_event_t *e) { static_cast<LVGL_App *>(lv_event_get_user_data(e))->kb_custom_event_cb_static(e); }, LV_EVENT_VALUE_CHANGED,
+      this);
+}
+
+void LVGL_App::kb_custom_event_cb(lv_event_t *e, lv_obj_t *kb, lv_obj_t *ta) {
+  uint16_t btn_id = lv_btnmatrix_get_selected_btn(kb);
+  if (btn_id == LV_BTNMATRIX_BTN_NONE)
+    return;
+  const char *txt = lv_btnmatrix_get_btn_text(kb, lv_btnmatrix_get_selected_btn(kb));
+  if (ta == NULL)
+    return;
+
+  if (strcmp(txt, LV_SYMBOL_TRASH) == 0) {
+    for (int i = 0; i < 10; i++) {
+      lv_textarea_delete_char(ta);
+    }
+  } else if (strcmp(txt, LV_SYMBOL_OK) == 0) {
+  }
+  // else
+  // lv_keyboard_def_event_cb(e);
+}
+
+void LVGL_App::kb_custom_event_cb_static(lv_event_t *e) {
+  lv_obj_t *kibod = (lv_obj_t *) lv_event_get_target(e);
+  lv_obj_t *ta    = (lv_obj_t *) lv_keyboard_get_textarea(kibod);
+  static_cast<LVGL_App *>(lv_event_get_user_data(e))->kb_custom_event_cb(e, kibod, ta);
 }
 
 void LVGL_App::hide_kb_event_cb(lv_event_t *e, lv_obj_t *cont, lv_obj_t *kb) {
@@ -63,6 +127,7 @@ void LVGL_App::ta_event_cb(lv_event_t *e, lv_obj_t *ta, lv_obj_t *kibod) {
     // Count the number of decimal points in the text
     int decimal_count = 0;
     if (lv_obj_has_flag(ta, LV_OBJ_FLAG_USER_1)) {
+      printf("Flag 1 decimal\n");
       // Decimal formatting logic
       int decimal_count = 0;
       for (int i = 0; txt[i] != '\0'; i++) {
@@ -77,17 +142,25 @@ void LVGL_App::ta_event_cb(lv_event_t *e, lv_obj_t *ta, lv_obj_t *kibod) {
         lv_textarea_set_cursor_pos(ta, 0);
         lv_textarea_delete_char(ta);  // Prevent leading decimal point
       }
+
     } else if (lv_obj_has_flag(ta, LV_OBJ_FLAG_USER_2)) {
+      printf("Flag 2 clock\n");
+      lv_textarea_set_max_length(ta, 8);
       // Clock formatting logic (xx:xx:xx)
       int colon_count = 0;
       for (int i = 0; txt[i] != '\0'; i++) {
-        if (txt[i] == ':') {
-          colon_count++;
+        if (txt[i] == '.') {
+          lv_textarea_delete_char(ta);  // Remove invalid input
         }
       }
 
-      if (colon_count > 2) {
-        lv_textarea_delete_char(ta);  // Remove invalid input
+      if (txt[0] >= '0' && txt[0] <= '9' && txt[1] >= '0' && txt[1] <= '9' && txt[2] != ':') {
+        lv_textarea_set_cursor_pos(ta, 2);
+        lv_textarea_add_char(ta, ':');
+      }
+      if (txt[3] >= '0' && txt[3] <= '9' && txt[4] >= '0' && txt[4] <= '9' && txt[5] != ':') {
+        lv_textarea_set_cursor_pos(ta, 5);
+        lv_textarea_add_char(ta, ':');
       }
     }
   }
@@ -145,6 +218,13 @@ void LVGL_App::home_screen(uint32_t delay) {
 
   lv_obj_add_event_cb(
       scr_home, [](lv_event_t *e) { static_cast<LVGL_App *>(lv_event_get_user_data(e))->kb_create_handler(e); }, LV_EVENT_SCREEN_LOADED, this);
+  lv_obj_add_event_cb(
+      scr_home,
+      [](lv_event_t *e) {
+        EventData *data = (EventData *) lv_event_get_param(e);
+        static_cast<LVGL_App *>(lv_event_get_user_data(e))->ta_event_setting_handler(e, data);
+      },
+      (lv_event_code_t) LV_EVENT_TA_SETTING, this);
 
   lv_scr_load_anim(scr_home, LV_SCR_LOAD_ANIM_NONE, 0, delay, true);
   lv_obj_set_scrollbar_mode(scr_home, LV_SCROLLBAR_MODE_OFF);
@@ -653,23 +733,45 @@ void LVGL_App::app_update(const Big_Labels_Value &big_labels_value, const Settin
   prev_status_labels_value  = status_labels_value;
 }
 
+void LVGL_App::ta_event_setting_handler(lv_event_t *e, EventData *tb) {
+  const char *ta_txt = lv_textarea_get_text(tb->textarea);
+  if (tb->data->param == highlightable_containers.cutoff_e.label) {
+    tb->event_type = PROPAGATE_CUTOFF_E;
+    internal_changes_cb(tb);
+  } else if (tb->data->param == highlightable_containers.cutoff_v.label) {
+    tb->event_type = PROPAGATE_CUTOFF_V;
+    internal_changes_cb(tb);
+  } else if (tb->data->param == highlightable_containers.setpoint.label) {
+    tb->event_type = PROPAGATE_SETPOINT;
+    internal_changes_cb(tb);
+  } else if (tb->data->param == highlightable_containers.timer.label) {
+    tb->event_type = PROPAGATE_TIMER;
+    internal_changes_cb(tb);
+  }
+}
+
 void LVGL_App::button_event_handler(lv_event_t *e) {
-  lv_event_code_t code = lv_event_get_code(e);
-  lv_obj_t       *obj  = (lv_obj_t *) lv_event_get_target(e);
+  lv_event_code_t            code = lv_event_get_code(e);
+  lv_obj_t                  *obj  = (lv_obj_t *) lv_event_get_target(e);
+  static WidgetParameterData data;
 
   if (code == LV_EVENT_CLICKED) {
     if (obj == bottom_grid_buttons.setpoint) {
-      // set_setting_highlight(Setpoint, true);
-      WidgetParameterData data;
+      data.issuer = scr_home;
+      data.param  = (void *) highlightable_containers.setpoint.label;
+      lv_obj_send_event(highlightable_containers.setpoint.label, LV_EVENT_CLICKED, &data);
       modal_create_number_input(&data, "", "Setpoint", FORMAT_DECIMAL);
     } else if (obj == bottom_grid_buttons.timer) {
-      WidgetParameterData data;
+      data.issuer = scr_home;
+      data.param  = (void *) highlightable_containers.timer.label;
       modal_create_number_input(&data, "", "Timer", FORMAT_CLOCK);
     } else if (obj == bottom_grid_buttons.cutoff_v) {
-      WidgetParameterData data;
+      data.issuer = scr_home;
+      data.param  = (void *) highlightable_containers.cutoff_v.label;
       modal_create_number_input(&data, "", "Cutoff-V", FORMAT_DECIMAL);
     } else if (obj == bottom_grid_buttons.cutoff_e) {
-      WidgetParameterData data;
+      data.issuer = scr_home;
+      data.param  = (void *) highlightable_containers.cutoff_e.label;
       modal_create_number_input(&data, "", "Cutoff-E", FORMAT_DECIMAL);
     } else if (obj == bottom_grid_buttons.settings) {
       modal_create_alert("Settings are not available yet", "Coming soon!");
@@ -884,28 +986,18 @@ lv_obj_t *LVGL_App::modal_create_number_input(WidgetParameterData *data, const c
   lv_obj_t *cancelBtn = lv_button_create(modal);
   lvc_btn_init(cancelBtn, cancelButtonText, LV_ALIGN_BOTTOM_LEFT, 15, -15);
 
-  // Custom data structure to pass through events
-  struct TextboxData {
-    WidgetParameterData *data;
-    lv_obj_t            *overlay;
-    lv_obj_t            *textarea;
-  };
-
-  TextboxData *tb_data = new TextboxData{data, overlay, textarea};
+  EventData *tb_data = new EventData{data, overlay, textarea, MODAL_CONFIRM_EVENT};
 
   // Confirm button event handler
   lv_obj_add_event_cb(
       confirmBtn,
       [](lv_event_t *e) {
-        TextboxData *d   = static_cast<TextboxData *>(lv_event_get_user_data(e));
-        const char  *txt = lv_textarea_get_text(d->textarea);
+        EventData  *d   = static_cast<EventData *>(lv_event_get_user_data(e));
+        const char *txt = lv_textarea_get_text(d->textarea);
 
-        // Send text back through event
         if (d->data) {
-          // Clone the string to ensure persistence
-          strcpy(text_buffer, txt);
-          printf("Text: %s\n", text_buffer);
-          // lv_obj_send_event(d->data->issuer, LV_EVENT_REFRESH, text_buffer);
+          if (d->data->issuer)
+            lv_obj_send_event(d->data->issuer, (lv_event_code_t) LV_EVENT_TA_SETTING, d);
         }
 
         lv_obj_delete(d->overlay);
