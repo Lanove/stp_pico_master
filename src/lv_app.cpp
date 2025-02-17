@@ -50,13 +50,23 @@ void LVGL_App::app_entry() {
 }
 
 void LVGL_App::kb_create_handler(lv_event_t *e) {
-  this->kb = lv_keyboard_create(scr_home);
-  // lv_keyboard_set_mode(this->kb, LV_KEYBOARD_MODE_NUMBER);
-  lv_keyboard_set_map(this->kb, LV_KEYBOARD_MODE_TEXT_LOWER, (const char **) kb_map_num, kb_ctrl_num_map);
-  lv_obj_add_flag(this->kb, LV_OBJ_FLAG_HIDDEN);
+  this->kb_password = lv_keyboard_create(scr_home);
+  lv_keyboard_set_mode(this->kb_password, LV_KEYBOARD_MODE_TEXT_LOWER);
+  lv_obj_add_flag(this->kb_password, LV_OBJ_FLAG_HIDDEN);
+  lv_obj_remove_event_cb(this->kb_password, lv_keyboard_def_event_cb);
   lv_obj_add_event_cb(
-      this->kb, [](lv_event_t *e) { static_cast<LVGL_App *>(lv_event_get_user_data(e))->kb_custom_event_cb_static(e); }, LV_EVENT_VALUE_CHANGED,
-      this);
+      this->kb_password, [](lv_event_t *e) { static_cast<LVGL_App *>(lv_event_get_user_data(e))->kb_custom_event_cb_static(e); },
+      LV_EVENT_VALUE_CHANGED, this);
+
+  this->kb_numeric = lv_keyboard_create(scr_home);
+  // lv_keyboard_set_mode(this->kb, LV_KEYBOARD_MODE_NUMBER);
+  lv_keyboard_set_map(this->kb_numeric, LV_KEYBOARD_MODE_USER_1, (const char **) kb_map_num, kb_ctrl_num_map);
+  lv_keyboard_set_mode(this->kb_numeric, LV_KEYBOARD_MODE_USER_1);
+  lv_obj_add_flag(this->kb_numeric, LV_OBJ_FLAG_HIDDEN);
+  lv_obj_remove_event_cb(this->kb_numeric, lv_keyboard_def_event_cb);
+  lv_obj_add_event_cb(
+      this->kb_numeric, [](lv_event_t *e) { static_cast<LVGL_App *>(lv_event_get_user_data(e))->kb_custom_event_cb_static(e); },
+      LV_EVENT_VALUE_CHANGED, this);
 }
 
 void LVGL_App::kb_custom_event_cb(lv_event_t *e, lv_obj_t *kb, lv_obj_t *ta) {
@@ -68,13 +78,10 @@ void LVGL_App::kb_custom_event_cb(lv_event_t *e, lv_obj_t *kb, lv_obj_t *ta) {
     return;
 
   if (strcmp(txt, LV_SYMBOL_TRASH) == 0) {
-    for (int i = 0; i < 10; i++) {
-      lv_textarea_delete_char(ta);
-    }
+    lv_textarea_set_text(ta, "");
   } else if (strcmp(txt, LV_SYMBOL_OK) == 0) {
-  }
-  // else
-  // lv_keyboard_def_event_cb(e);
+  } else
+    lv_keyboard_def_event_cb(e);
 }
 
 void LVGL_App::kb_custom_event_cb_static(lv_event_t *e) {
@@ -116,7 +123,6 @@ void LVGL_App::ta_event_cb(lv_event_t *e, lv_obj_t *ta, lv_obj_t *kibod) {
     lv_obj_move_foreground(kibod);
     lv_obj_update_layout(kibod);
   } else if (code == LV_EVENT_DEFOCUSED) {
-    printf("Defocused\n");
     lv_obj_set_height(overlay, LV_VER_RES);
     lv_obj_update_layout(overlay); /*Be sure the sizes are recalculated*/
     lv_keyboard_set_textarea(kibod, NULL);
@@ -126,8 +132,9 @@ void LVGL_App::ta_event_cb(lv_event_t *e, lv_obj_t *ta, lv_obj_t *kibod) {
     const char *txt = lv_textarea_get_text(ta);
     // Count the number of decimal points in the text
     int decimal_count = 0;
+    if (kibod == kb_password)
+      return;
     if (lv_obj_has_flag(ta, LV_OBJ_FLAG_USER_1)) {
-      printf("Flag 1 decimal\n");
       // Decimal formatting logic
       int decimal_count = 0;
       for (int i = 0; txt[i] != '\0'; i++) {
@@ -144,7 +151,6 @@ void LVGL_App::ta_event_cb(lv_event_t *e, lv_obj_t *ta, lv_obj_t *kibod) {
       }
 
     } else if (lv_obj_has_flag(ta, LV_OBJ_FLAG_USER_2)) {
-      printf("Flag 2 clock\n");
       lv_textarea_set_max_length(ta, 8);
       // Clock formatting logic (xx:xx:xx)
       int colon_count = 0;
@@ -735,46 +741,72 @@ void LVGL_App::app_update(const Big_Labels_Value &big_labels_value, const Settin
 
 void LVGL_App::ta_event_setting_handler(lv_event_t *e, EventData *tb) {
   const char *ta_txt = lv_textarea_get_text(tb->textarea);
-  if (tb->data->param == highlightable_containers.cutoff_e.label) {
+  if (tb->data.param == highlightable_containers.cutoff_e.label) {
     tb->event_type = PROPAGATE_CUTOFF_E;
-    internal_changes_cb(tb);
-  } else if (tb->data->param == highlightable_containers.cutoff_v.label) {
+    if (internal_changes_cb)
+      internal_changes_cb(tb);
+  } else if (tb->data.param == highlightable_containers.cutoff_v.label) {
     tb->event_type = PROPAGATE_CUTOFF_V;
-    internal_changes_cb(tb);
-  } else if (tb->data->param == highlightable_containers.setpoint.label) {
+    if (internal_changes_cb)
+      internal_changes_cb(tb);
+  } else if (tb->data.param == highlightable_containers.setpoint.label) {
     tb->event_type = PROPAGATE_SETPOINT;
-    internal_changes_cb(tb);
-  } else if (tb->data->param == highlightable_containers.timer.label) {
+    if (internal_changes_cb)
+      internal_changes_cb(tb);
+  } else if (tb->data.param == highlightable_containers.timer.label) {
     tb->event_type = PROPAGATE_TIMER;
-    internal_changes_cb(tb);
+    if (internal_changes_cb)
+      internal_changes_cb(tb);
+  } else {
+    tb->event_type = CONNECT_WIFI;
+    if (wifi_cb)
+      wifi_cb(tb);
   }
 }
 
 void LVGL_App::button_event_handler(lv_event_t *e) {
   lv_event_code_t            code = lv_event_get_code(e);
   lv_obj_t                  *obj  = (lv_obj_t *) lv_event_get_target(e);
-  static WidgetParameterData data;
+  char                       text_buf[128];
+  static WidgetParameterData data  = WidgetParameterData();
+  static WidgetParameterData data2 = WidgetParameterData();
 
   if (code == LV_EVENT_CLICKED) {
     if (obj == bottom_grid_buttons.setpoint) {
       data.issuer = scr_home;
       data.param  = (void *) highlightable_containers.setpoint.label;
       lv_obj_send_event(highlightable_containers.setpoint.label, LV_EVENT_CLICKED, &data);
-      modal_create_number_input(&data, "", "Setpoint", FORMAT_DECIMAL);
+      modal_create_textarea_input(&data, "", "Setpoint", FORMAT_DECIMAL);
     } else if (obj == bottom_grid_buttons.timer) {
       data.issuer = scr_home;
       data.param  = (void *) highlightable_containers.timer.label;
-      modal_create_number_input(&data, "", "Timer", FORMAT_CLOCK);
+      modal_create_textarea_input(&data, "", "Timer", FORMAT_CLOCK);
     } else if (obj == bottom_grid_buttons.cutoff_v) {
       data.issuer = scr_home;
       data.param  = (void *) highlightable_containers.cutoff_v.label;
-      modal_create_number_input(&data, "", "Cutoff-V", FORMAT_DECIMAL);
+      modal_create_textarea_input(&data, "", "Cutoff-V", FORMAT_DECIMAL);
     } else if (obj == bottom_grid_buttons.cutoff_e) {
       data.issuer = scr_home;
       data.param  = (void *) highlightable_containers.cutoff_e.label;
-      modal_create_number_input(&data, "", "Cutoff-E", FORMAT_DECIMAL);
+      modal_create_textarea_input(&data, "", "Cutoff-E", FORMAT_DECIMAL);
     } else if (obj == bottom_grid_buttons.settings) {
-      modal_create_alert("Settings are not available yet", "Coming soon!");
+      modal_create_setting();
+    } else if (lv_obj_get_parent(obj) == wifi_list_obj) {
+      const char *ssid = lv_label_get_text(lv_obj_get_child(obj, 1));
+      data.issuer      = scr_home;
+      data.param       = (void *) &data2;
+      data2.issuer     = wifi_list_obj;
+      data2.param      = (void *) ssid;
+      snprintf(text_buf, sizeof(text_buf), "Masukkan password %s", ssid);
+      modal_create_textarea_input(&data, "", text_buf, FORMAT_PASSWORD);
+    } else if (lv_obj_get_parent(lv_obj_get_parent(obj)) == wifi_list_obj) {
+      const char *ssid = lv_label_get_text(lv_obj_get_child(lv_obj_get_parent(obj), 1));
+      data.issuer      = scr_home;
+      data.param       = (void *) &data2;
+      data2.issuer     = wifi_list_obj;
+      data2.param      = (void *) ssid;
+      snprintf(text_buf, sizeof(text_buf), "Masukkan password %s", ssid);
+      modal_create_textarea_input(&data, "", text_buf, FORMAT_PASSWORD);
     }
   }
 }
@@ -837,8 +869,8 @@ void LVGL_App::clear_source_highlight() {
   set_highlight_container(highlightable_containers.source_off.container, false);
 }
 
-lv_obj_t *LVGL_App::lvc_create_overlay() {
-  lv_obj_t *overlay = lv_obj_create(lv_screen_active());
+lv_obj_t *LVGL_App::lvc_create_overlay(lv_obj_t *parent) {
+  lv_obj_t *overlay = lv_obj_create(parent);
   lv_obj_set_size(overlay, 480, 320);
   lv_obj_set_style_pad_all(overlay, 0, 0);
   lv_obj_set_style_margin_all(overlay, 0, 0);
@@ -903,11 +935,121 @@ LVGL_App::modal_create_confirm(WidgetParameterData *modalConfirmData, const char
       LV_EVENT_CLICKED, modalConfirmData);
   return modal;
 }
+lv_obj_t *LVGL_App::lvc_create_loading(lv_obj_t *parent, const char *message) {
+  lv_obj_t *overlay = lvc_create_overlay(parent);
+  lv_obj_t *label   = lv_label_create(overlay);
+  lvc_label_init(label, &lv_font_montserrat_16, LV_ALIGN_CENTER, 0, 0, bs_white, LV_TEXT_ALIGN_CENTER, LV_LABEL_LONG_WRAP, lv_pct(100));
+  lv_label_set_text_static(label, "Memindai jaringan WiFi...");
+  lv_obj_align(label, LV_ALIGN_CENTER, 0, -80);
+  lv_obj_t *spinner = lv_spinner_create(overlay);
+  lv_obj_set_size(spinner, 75, 75);
+  lv_obj_center(spinner);
+  return overlay;
+}
+
+lv_obj_t *LVGL_App::modal_create_setting(const lv_font_t *headerFont, const lv_font_t *messageFont, lv_color_t headerTextColor, lv_color_t textColor,
+                                         lv_color_t headerColor, const char *buttonText, lv_coord_t xSize, lv_coord_t ySize) {
+  auto set_width_height_radius = [](lv_obj_t *obj, lv_coord_t width, lv_coord_t height, lv_coord_t radius) {
+    lv_obj_set_width(obj, width);
+    lv_obj_set_height(obj, height);
+    lv_obj_set_style_radius(obj, radius, 0);
+  };
+  lv_obj_t *overlay = lvc_create_overlay(lv_screen_active());
+
+  lv_obj_t *modal = lv_obj_create(overlay);
+  lv_obj_center(modal);
+  lv_obj_set_size(modal, xSize, ySize);
+  lv_obj_set_style_pad_all(modal, 0, 0);
+
+  lv_obj_t *modalHeader = lv_obj_create(modal);
+  lv_obj_align(modalHeader, LV_ALIGN_TOP_MID, 0, 0);
+  lv_obj_set_size(modalHeader, lv_pct(100), lv_pct(20));
+  lv_obj_set_style_radius(modalHeader, 0, 0);
+
+  lv_obj_set_style_bg_color(modalHeader, lv_palette_darken(LV_PALETTE_BLUE, 4), 0);
+
+  lv_obj_t *headerLabel = lv_label_create(modalHeader);
+  lvc_label_init(headerLabel, headerFont, LV_ALIGN_TOP_LEFT, 0, 0, headerTextColor, LV_TEXT_ALIGN_LEFT, LV_LABEL_LONG_WRAP, lv_pct(100));
+  lv_label_set_text_static(headerLabel, "WiFi");
+
+  lv_obj_t *okButton = lv_button_create(modalHeader);
+  lvc_btn_init(okButton, "Kembali", LV_ALIGN_RIGHT_MID, 0, 0);
+  lv_obj_add_event_cb(okButton, [](lv_event_t *e) { lv_obj_delete((lv_obj_t *) lv_event_get_user_data(e)); }, LV_EVENT_CLICKED, overlay);
+
+  lv_obj_t *scanButton = lv_button_create(modalHeader);
+  lvc_btn_init(scanButton, "Pindai", LV_ALIGN_RIGHT_MID, -110, 0);
+  static WidgetParameterData scan_data;
+  scan_data.issuer = overlay;
+  scan_data.param  = this;
+  lv_obj_add_event_cb(
+      scanButton,
+      [](lv_event_t *e) {
+        static EventData           ed;
+        static WidgetParameterData ed_wpd;
+        WidgetParameterData       *wpd     = (WidgetParameterData *) lv_event_get_user_data(e);
+        lv_obj_t                  *overlay = wpd->issuer;
+        LVGL_App                  *app     = (LVGL_App *) wpd->param;
+        lvc_create_loading(overlay, "Memindai jaringan WiFi...");
+        ed.event_type  = SCAN_WIFI;
+        ed.data.issuer = overlay;
+        if (app->wifi_cb)
+          app->wifi_cb(&ed);
+      },
+      LV_EVENT_CLICKED, &scan_data);
+
+  if (wifi_list.size() > 0) {
+    wifi_list_obj = lv_list_create(modal);
+    lv_obj_set_style_radius(wifi_list_obj, 0, 0);
+    lv_obj_set_size(wifi_list_obj, lv_pct(100), LV_SIZE_CONTENT);
+    lv_obj_align(wifi_list_obj, LV_ALIGN_TOP_MID, 0, 64);
+    auto it = std::find(wifi_list.begin(), wifi_list.end(), connected_wifi);
+    if (it != wifi_list.end()) {
+      size_t index = std::distance(wifi_list.begin(), it);
+      if (index != 0) {
+        std::rotate(wifi_list.begin(), it, it + 1);
+      }
+    }
+    for (int i = 0; i < wifi_list.size(); i++) {
+      lv_obj_t *connect_btn;
+      lv_obj_t *btn = lv_list_add_button(wifi_list_obj, LV_SYMBOL_WIFI, wifi_list[i].c_str());
+      lv_obj_set_style_text_font(lv_obj_get_child(btn, 0), &lv_font_montserrat_16, 0);
+      lv_obj_set_style_text_font(lv_obj_get_child(btn, 1), &lv_font_montserrat_16, 0);
+      connect_btn = lv_button_create(btn);
+      lvc_btn_init(connect_btn, wifi_list[i] != connected_wifi ? "Hubungkan" : "Terhubung", LV_ALIGN_RIGHT_MID, 0, 0);
+      if (wifi_list[i] == connected_wifi) {
+        lv_obj_add_state(btn, LV_STATE_DISABLED);
+        lv_obj_add_state(connect_btn, LV_STATE_DISABLED);
+      } else {
+        lv_obj_add_event_cb(
+            btn,
+            [](lv_event_t *e) {
+              // Call the member function through the captured 'this' pointer
+              static_cast<LVGL_App *>(lv_event_get_user_data(e))->button_event_handler(e);
+            },
+            LV_EVENT_ALL, this);
+        lv_obj_add_event_cb(
+            connect_btn,
+            [](lv_event_t *e) {
+              // Call the member function through the captured 'this' pointer
+              static_cast<LVGL_App *>(lv_event_get_user_data(e))->button_event_handler(e);
+            },
+            LV_EVENT_ALL, this);
+      }
+      set_width_height_radius(connect_btn, LV_SIZE_CONTENT, lv_pct(85), 5);
+    }
+  } else {
+    lv_obj_t *no_wifi_label = lv_label_create(modal);
+    lvc_label_init(no_wifi_label, &lv_font_montserrat_16, LV_ALIGN_CENTER, 0, 0, textColor, LV_TEXT_ALIGN_CENTER, LV_LABEL_LONG_WRAP, lv_pct(100));
+    lv_label_set_text_static(no_wifi_label, "Tidak ada jaringan WiFi yang ditemukan\n coba tombol scan untuk memperbarui");
+  }
+
+  return modal;
+}
 
 lv_obj_t *LVGL_App::modal_create_alert(const char *message, const char *headerText, const lv_font_t *headerFont, const lv_font_t *messageFont,
                                        lv_color_t headerTextColor, lv_color_t textColor, lv_color_t headerColor, const char *buttonText,
                                        lv_coord_t xSize, lv_coord_t ySize) {
-  lv_obj_t *overlay = lvc_create_overlay();
+  lv_obj_t *overlay = lvc_create_overlay(lv_screen_active());
 
   lv_obj_t *modal = lv_obj_create(overlay);
   lv_obj_center(modal);
@@ -935,13 +1077,12 @@ lv_obj_t *LVGL_App::modal_create_alert(const char *message, const char *headerTe
   return modal;
 }
 
-lv_obj_t *LVGL_App::modal_create_number_input(WidgetParameterData *data, const char *initialText, const char *headerText, NumberFormatType format,
-                                              const lv_font_t *headerFont, const lv_font_t *textboxFont, lv_color_t headerTextColor,
-                                              lv_color_t textColor, lv_color_t headerColor, const char *confirmButtonText,
-                                              const char *cancelButtonText, lv_coord_t xSize, lv_coord_t ySize) {
-  static char text_buffer[64];
+lv_obj_t *LVGL_App::modal_create_textarea_input(WidgetParameterData *data, const char *initialText, const char *headerText, NumberFormatType format,
+                                                const lv_font_t *headerFont, const lv_font_t *textboxFont, lv_color_t headerTextColor,
+                                                lv_color_t textColor, lv_color_t headerColor, const char *confirmButtonText,
+                                                const char *cancelButtonText, lv_coord_t xSize, lv_coord_t ySize) {
   // Create overlay and modal container
-  lv_obj_t *overlay = lvc_create_overlay();
+  lv_obj_t *overlay = lvc_create_overlay(lv_screen_active());
   lv_obj_t *modal   = lv_obj_create(overlay);
   lv_obj_center(modal);
   lv_obj_set_size(modal, xSize, ySize);
@@ -956,16 +1097,18 @@ lv_obj_t *LVGL_App::modal_create_number_input(WidgetParameterData *data, const c
 
   // Header label
   lv_obj_t *headerLabel = lv_label_create(header);
-  lvc_label_init(headerLabel, headerFont, LV_ALIGN_TOP_LEFT, 0, 0, headerTextColor, LV_TEXT_ALIGN_LEFT, LV_LABEL_LONG_WRAP, lv_pct(100));
-  lv_label_set_text_static(headerLabel, headerText);
+  lvc_label_init(headerLabel, headerFont, LV_ALIGN_TOP_LEFT, 0, 0, headerTextColor, LV_TEXT_ALIGN_LEFT, LV_LABEL_LONG_SCROLL, lv_pct(100));
+  lv_label_set_text(headerLabel, headerText);
 
   // Create text area for numeric input
   lv_obj_t *textarea = lv_textarea_create(modal);
   lv_textarea_set_text(textarea, initialText);
   lv_textarea_set_one_line(textarea, true);
-  lv_textarea_set_accepted_chars(textarea, "0123456789.:");
+  if (format != FORMAT_PASSWORD) {
+    lv_textarea_set_accepted_chars(textarea, "0123456789.:");
+    lv_textarea_set_max_length(textarea, 8);
+  }
   lv_obj_set_width(textarea, lv_pct(50));
-  lv_textarea_set_max_length(textarea, 8);
   lv_obj_align(textarea, LV_ALIGN_CENTER, 0, 0);
   lv_obj_set_style_text_font(textarea, textboxFont, 0);
   lv_obj_set_style_text_color(textarea, textColor, 0);
@@ -974,9 +1117,13 @@ lv_obj_t *LVGL_App::modal_create_number_input(WidgetParameterData *data, const c
   lv_obj_set_style_border_color(textarea, bs_dark, LV_PART_CURSOR | LV_STATE_FOCUSED);
   lv_obj_remove_flag(textarea, LV_OBJ_FLAG_USER_1);
   lv_obj_remove_flag(textarea, LV_OBJ_FLAG_USER_2);
-  lv_obj_add_flag(textarea, format == FORMAT_DECIMAL ? LV_OBJ_FLAG_USER_1 : LV_OBJ_FLAG_USER_2);
-  lv_obj_add_event_cb(overlay, hide_kb_event_cb_static, LV_EVENT_ALL, kb);
-  lv_obj_add_event_cb(textarea, ta_event_cb_static, LV_EVENT_ALL, kb);
+  if (format != FORMAT_PASSWORD)
+    lv_obj_add_flag(textarea, format == FORMAT_DECIMAL ? LV_OBJ_FLAG_USER_1 : LV_OBJ_FLAG_USER_2);
+
+  lv_obj_remove_flag(kb_password, LV_OBJ_FLAG_HIDDEN);
+  lv_obj_remove_flag(kb_numeric, LV_OBJ_FLAG_HIDDEN);
+  lv_obj_add_event_cb(overlay, hide_kb_event_cb_static, LV_EVENT_ALL, format != FORMAT_PASSWORD ? kb_numeric : kb_password);
+  lv_obj_add_event_cb(textarea, ta_event_cb_static, LV_EVENT_ALL, format != FORMAT_PASSWORD ? kb_numeric : kb_password);
   lv_obj_send_event(textarea, LV_EVENT_FOCUSED, NULL);
 
   // Create buttons
@@ -986,7 +1133,7 @@ lv_obj_t *LVGL_App::modal_create_number_input(WidgetParameterData *data, const c
   lv_obj_t *cancelBtn = lv_button_create(modal);
   lvc_btn_init(cancelBtn, cancelButtonText, LV_ALIGN_BOTTOM_LEFT, 15, -15);
 
-  EventData *tb_data = new EventData{data, overlay, textarea, MODAL_CONFIRM_EVENT};
+  EventData *tb_data = new EventData{*data, overlay, textarea, MODAL_CONFIRM_EVENT};
 
   // Confirm button event handler
   lv_obj_add_event_cb(
@@ -995,10 +1142,8 @@ lv_obj_t *LVGL_App::modal_create_number_input(WidgetParameterData *data, const c
         EventData  *d   = static_cast<EventData *>(lv_event_get_user_data(e));
         const char *txt = lv_textarea_get_text(d->textarea);
 
-        if (d->data) {
-          if (d->data->issuer)
-            lv_obj_send_event(d->data->issuer, (lv_event_code_t) LV_EVENT_TA_SETTING, d);
-        }
+        if (d->data.issuer)
+          lv_obj_send_event(d->data.issuer, (lv_event_code_t) LV_EVENT_TA_SETTING, d);
 
         lv_obj_delete(d->overlay);
         delete d;

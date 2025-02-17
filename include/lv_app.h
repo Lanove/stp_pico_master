@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include <algorithm>
 #include <functional>
 
 #include "lv_colors.h"
@@ -11,7 +12,9 @@
 #include "src/misc/lv_color.h"
 #include "stdint.h"
 #include "stdio.h"
+#include "string"
 #include "string.h"
+#include "vector"
 
 LV_IMG_DECLARE(STP_SPLASH);
 #define DISPLAY_SIZE_Y 320
@@ -90,13 +93,7 @@ typedef enum {
   Source_Off,
 } Source_Highlighted_Container;
 
-typedef enum {
-  MODAL_CONFIRM_EVENT,
-  PROPAGATE_CUTOFF_E,
-  PROPAGATE_CUTOFF_V,
-  PROPAGATE_SETPOINT,
-  PROPAGATE_TIMER,
-} EventType;
+typedef enum { MODAL_CONFIRM_EVENT, PROPAGATE_CUTOFF_E, PROPAGATE_CUTOFF_V, PROPAGATE_SETPOINT, PROPAGATE_TIMER, SCAN_WIFI, CONNECT_WIFI } EventType;
 
 struct WidgetParameterData {
   lv_obj_t *issuer = NULL;
@@ -105,15 +102,15 @@ struct WidgetParameterData {
 
 // Custom data structure to pass through events
 struct EventData {
-  WidgetParameterData *data;
-  lv_obj_t            *overlay;
-  lv_obj_t            *textarea;
-  EventType            event_type;
+  WidgetParameterData data;
+  lv_obj_t           *overlay;
+  lv_obj_t           *textarea;
+  EventType           event_type;
 };
 
 class LVGL_App {
  private:
-  typedef enum { FORMAT_DECIMAL, FORMAT_CLOCK } NumberFormatType;
+  typedef enum { FORMAT_DECIMAL, FORMAT_CLOCK, FORMAT_PASSWORD } NumberFormatType;
 
  public:
   void app_entry();
@@ -126,17 +123,28 @@ class LVGL_App {
   Setting_Highlighted_Container get_highlighted_setting() { return setting_highlight; }
 
   void attach_internal_changes_cb(std::function<void(EventData *)> internal_changes_cb) { this->internal_changes_cb = internal_changes_cb; }
+  void attach_wifi_cb(std::function<void(EventData *)> wifi_cb) { this->wifi_cb = wifi_cb; }
 
   lv_obj_t *modal_create_alert(const char *message, const char *headerText = "Warning!", const lv_font_t *headerFont = &lv_font_montserrat_20,
                                const lv_font_t *messageFont = &lv_font_montserrat_14, lv_color_t headerTextColor = bs_dark,
                                lv_color_t textColor = bs_white, lv_color_t headerColor = bs_warning, const char *buttonText = "Ok",
                                lv_coord_t xSize = lv_pct(70), lv_coord_t ySize = lv_pct(70));
-                               
+
+  lv_obj_t *modal_create_setting(const lv_font_t *headerFont = &lv_font_montserrat_20, const lv_font_t *messageFont = &lv_font_montserrat_14,
+                                 lv_color_t headerTextColor = bs_white, lv_color_t textColor = bs_white, lv_color_t headerColor = bs_warning,
+                                 const char *buttonText = "Ok", lv_coord_t xSize = lv_pct(90), lv_coord_t ySize = lv_pct(90));
+
+  void set_wifi_list(std::vector<std::string> wifi_list) { this->wifi_list = wifi_list; }
+  void set_connected_wifi(std::string connected_wifi) { this->connected_wifi = connected_wifi; }
 
  private:
-  const char *bottom_home_btns[5] = {"Setpoint", "Cut-off V", "Cut-off E", "Timer", "Settings"};
-  lv_obj_t   *scr_home;
-  lv_obj_t   *kb;
+  const char              *bottom_home_btns[5] = {"Setpoint", "Cut-off V", "Cut-off E", "Timer", "Settings"};
+  lv_obj_t                *scr_home;
+  lv_obj_t                *kb_numeric;
+  lv_obj_t                *kb_password;
+  lv_obj_t                *wifi_list_obj;
+  std::vector<std::string> wifi_list;
+  std::string              connected_wifi;
 
   Setting_Highlighted_Container setting_highlight;
   Source_Highlighted_Container  source_highlight;
@@ -146,6 +154,7 @@ class LVGL_App {
   Top_Grid_Labels                  top_grid_labels;
   Bottom_Grid_Buttons              bottom_grid_buttons;
   std::function<void(EventData *)> internal_changes_cb = nullptr;
+  std::function<void(EventData *)> wifi_cb             = nullptr;
 
   static constexpr uint32_t anim_time          = 500;
   static constexpr uint32_t anim_translation_y = 150;
@@ -175,11 +184,13 @@ class LVGL_App {
   lv_obj_t   *create_row_container(lv_obj_t *parent, int flex_grow, std::function<void(lv_obj_t *)> create_child_cb);
   void        home_screen(uint32_t delay);
 
-  lv_obj_t *lvc_create_overlay();
-  void lvc_label_init(lv_obj_t *label, const lv_font_t *font = &lv_font_montserrat_14, lv_align_t align = LV_ALIGN_DEFAULT, lv_coord_t offsetX = 0,
-                      lv_coord_t offsetY = 0, lv_color_t textColor = bs_dark, lv_text_align_t alignText = LV_TEXT_ALIGN_CENTER,
-                      lv_label_long_mode_t longMode = LV_LABEL_LONG_WRAP, lv_coord_t textWidth = 0);
-  lv_obj_t *
+  static lv_obj_t *lvc_create_loading(lv_obj_t *parent, const char *message);
+  static lv_obj_t *lvc_create_overlay(lv_obj_t *parent);
+  static void
+  lvc_label_init(lv_obj_t *label, const lv_font_t *font = &lv_font_montserrat_14, lv_align_t align = LV_ALIGN_DEFAULT, lv_coord_t offsetX = 0,
+                 lv_coord_t offsetY = 0, lv_color_t textColor = bs_dark, lv_text_align_t alignText = LV_TEXT_ALIGN_CENTER,
+                 lv_label_long_mode_t longMode = LV_LABEL_LONG_WRAP, lv_coord_t textWidth = 0);
+  static lv_obj_t *
   lvc_btn_init(lv_obj_t *btn, const char *labelText, lv_align_t align = LV_ALIGN_DEFAULT, lv_coord_t offsetX = 0, lv_coord_t offsetY = 0,
                const lv_font_t *font = &lv_font_montserrat_14, lv_color_t bgColor = lv_palette_main(LV_PALETTE_BLUE), lv_color_t textColor = bs_white,
                lv_text_align_t alignText = LV_TEXT_ALIGN_CENTER, lv_label_long_mode_t longMode = LV_LABEL_LONG_WRAP, lv_coord_t labelWidth = 0,
@@ -190,11 +201,11 @@ class LVGL_App {
                                  lv_color_t headerTextColor = bs_white, lv_color_t textColor = bs_white,
                                  lv_color_t headerColor = lv_palette_main(LV_PALETTE_BLUE), const char *confirmButtonText = "Ok",
                                  const char *cancelButtonText = "Batal", lv_coord_t xSize = lv_pct(70), lv_coord_t ySize = lv_pct(70));
-  lv_obj_t *modal_create_number_input(WidgetParameterData *data, const char *initialText, const char *headerText, NumberFormatType format,
-                                      const lv_font_t *headerFont = &lv_font_montserrat_20, const lv_font_t *textboxFont = &lv_font_montserrat_16,
-                                      lv_color_t headerTextColor = bs_white, lv_color_t textColor = bs_dark,
-                                      lv_color_t headerColor = lv_palette_main(LV_PALETTE_BLUE), const char *confirmButtonText = "Ok",
-                                      const char *cancelButtonText = "Batal", lv_coord_t xSize = lv_pct(100), lv_coord_t ySize = lv_pct(100));
+  lv_obj_t *modal_create_textarea_input(WidgetParameterData *data, const char *initialText, const char *headerText, NumberFormatType format,
+                                        const lv_font_t *headerFont = &lv_font_montserrat_20, const lv_font_t *textboxFont = &lv_font_montserrat_16,
+                                        lv_color_t headerTextColor = bs_white, lv_color_t textColor = bs_dark,
+                                        lv_color_t headerColor = lv_palette_main(LV_PALETTE_BLUE), const char *confirmButtonText = "Ok",
+                                        const char *cancelButtonText = "Batal", lv_coord_t xSize = lv_pct(100), lv_coord_t ySize = lv_pct(100));
 };
 
 #endif

@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <vector>
 
 #include "click_encoder.h"
 #include "hardware/clocks.h"
@@ -46,6 +47,10 @@ Setting_Labels_Value shared_setting_labels_value;
 Status_Labels_Value  shared_status_labels_value;
 mutex_t              shared_data_mutex;
 
+std::vector<std::string> wifi_list;
+std::string              connected_wifi;
+
+void wifi_cb_dummy(EventData *ed);
 void core1_entry();
 void core0_entry();
 void changes_cb(EventData *data);
@@ -60,7 +65,6 @@ void apply_min_max(T &value, T min, T max) {
 
 int main() {
   stdio_init_all();
-
   sleep_ms(2000);
 
   if (!set_sys_clock_khz(processor_mhz * 1000, false))
@@ -123,8 +127,18 @@ void core1_entry() {
   int undivided_encoder_value = 0;
   int encoder_delta           = 0;
 
+  connected_wifi = "NaN";
+  wifi_list.push_back("SSID1");
+  wifi_list.push_back("SSID2");
+  // for (int i = 0; i < wifi_list.size(); i++) {
+  //   printf("%s", wifi_list[i].c_str());
+  // }
   encoder.set_enable_acceleration(true);
   app.attach_internal_changes_cb(changes_cb);
+  app.set_connected_wifi(connected_wifi);
+  app.attach_wifi_cb(wifi_cb_dummy);
+  app.set_wifi_list(wifi_list);
+
   while (true) {
     mutex_enter_blocking(&shared_data_mutex);
 
@@ -138,11 +152,6 @@ void core1_entry() {
     ClickEncoder::Button b = encoder.get_button();
 
     encoder_delta = encoder_value - last_encoder_value;
-    if (encoder_delta != 0)
-      printf("Encoder delta: %d\n", encoder_delta);
-    if (encoder_value != last_encoder_value) {
-      printf("Encoder value: %d\n", encoder_value);
-    }
 
     Setting_Highlighted_Container highlighted_setting = app.get_highlighted_setting();
     switch (highlighted_setting) {
@@ -186,6 +195,22 @@ void core1_entry() {
     sleep_ms(5);
   }
   return;
+}
+
+void wifi_cb_dummy(EventData *ed) {
+  printf("WiFi callback\n");
+  EventType event_type = ed->event_type;
+  lv_obj_t *overlay;
+  switch (event_type) {
+  case SCAN_WIFI:
+    break;
+  case CONNECT_WIFI:
+    WidgetParameterData *data2 = nullptr;
+    data2                      = (WidgetParameterData *) ed->data.param;
+    char       *ssid           = (char *) data2->param;
+    const char *pwd            = lv_textarea_get_text(ed->textarea);
+    break;
+  }
 }
 
 void changes_cb(EventData *ed) {
