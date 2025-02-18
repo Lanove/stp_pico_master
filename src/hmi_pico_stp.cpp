@@ -1,8 +1,10 @@
 #include <stdio.h>
 #include <stdlib.h>
+
 #include <vector>
 
 #include "click_encoder.h"
+#include "esp32.h"
 #include "hardware/clocks.h"
 #include "hardware/pll.h"
 #include "hardware/structs/clocks.h"
@@ -39,6 +41,7 @@ uart_parity_t modbus_parity    = UART_PARITY_NONE;
 ModbusMaster  mbm = ModbusMaster(modbus_de_re, modbus_rx, modbus_tx, modbus_uart, modbus_baudrate, modbus_data_bits, modbus_stop_bits, modbus_parity);
 
 PZEM017                pzem017 = PZEM017(mbm, 0x02);
+ESP32                  esp32   = ESP32(mbm, 0x03);
 PZEM017::measurement_t pzem017_measurement;
 
 // Following variabbles are shared between the two cores
@@ -86,12 +89,21 @@ void core0_entry() {
   gpio_init(15);
   gpio_set_dir(15, GPIO_OUT);
   PZEM017::status_t status;
+  ESP32::status_t   esp_status;
   while (true) {
     status = pzem017.request_all(pzem017_measurement);
     if (status != PZEM017::No_Error) {
       printf("Error: %s\n", pzem017.error_to_string(status));
     }
 
+    esp_status = esp32.set_relay_state(esp32.get_reg().relay_state[0] + 1, 0);
+    if (esp_status != ESP32::No_Error) {
+      printf("Error: %s\n", esp32.error_to_string(esp_status));
+    }
+    esp_status = esp32.set_relay_state(esp32.get_reg().relay_state[1] + 1, 1);
+    if (esp_status != ESP32::No_Error) {
+      printf("Error: %s\n", esp32.error_to_string(esp_status));
+    }
     mutex_enter_blocking(&shared_data_mutex);
     shared_big_labels_value.v  = pzem017_measurement.voltage;
     shared_big_labels_value.a  = pzem017_measurement.current;
@@ -130,7 +142,7 @@ void core1_entry() {
   connected_wifi = "NaN";
   wifi_list.push_back("SSID1");
   wifi_list.push_back("SSID2");
-  
+
   encoder.set_enable_acceleration(true);
   app.attach_internal_changes_cb(changes_cb);
   app.set_connected_wifi(connected_wifi);
