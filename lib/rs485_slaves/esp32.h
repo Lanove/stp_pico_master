@@ -13,12 +13,7 @@ class ESP32 {
     SSID_Request      = 0x0001,
     Scan_Request      = 0x0002,
   } input_register_t;
-
-  typedef enum {
-    Calibration  = 0x41,
-    Reset_Energy = 0x42,
-  } modbus_function_code_extension_t;
-
+  
   typedef enum {
     Relay_State_Low  = 0x0000,
     Relay_State_High = 0x0001,

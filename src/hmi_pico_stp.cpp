@@ -90,6 +90,7 @@ void core0_entry() {
   gpio_set_dir(15, GPIO_OUT);
   PZEM017::status_t status;
   ESP32::status_t   esp_status;
+  float temperature;
   while (true) {
     status = pzem017.request_all(pzem017_measurement);
     if (status != PZEM017::No_Error) {
@@ -103,6 +104,10 @@ void core0_entry() {
     esp_status = esp32.set_relay_state(esp32.get_reg().relay_state[1] + 1, 1);
     if (esp_status != ESP32::No_Error) {
       printf("Error: %s\n", esp32.error_to_string(esp_status));
+    }
+    esp_status = esp32.request_temperature(temperature);
+    if(esp_status == ESP32::No_Error){
+      printf("Temperature: %f\n", temperature);
     }
     mutex_enter_blocking(&shared_data_mutex);
     shared_big_labels_value.v  = pzem017_measurement.voltage;
