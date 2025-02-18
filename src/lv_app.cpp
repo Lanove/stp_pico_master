@@ -67,6 +67,10 @@ void LVGL_App::kb_create_handler(lv_event_t *e) {
   lv_obj_add_event_cb(
       this->kb_numeric, [](lv_event_t *e) { static_cast<LVGL_App *>(lv_event_get_user_data(e))->kb_custom_event_cb_static(e); },
       LV_EVENT_VALUE_CHANGED, this);
+
+  keyboards.numeric  = kb_numeric;
+  keyboards.password = kb_password;
+  printf("kb numeric %p kb password %p\n", keyboards.numeric, keyboards.password);
 }
 
 void LVGL_App::kb_custom_event_cb(lv_event_t *e, lv_obj_t *kb, lv_obj_t *ta) {
@@ -90,19 +94,22 @@ void LVGL_App::kb_custom_event_cb_static(lv_event_t *e) {
   static_cast<LVGL_App *>(lv_event_get_user_data(e))->kb_custom_event_cb(e, kibod, ta);
 }
 
-void LVGL_App::hide_kb_event_cb(lv_event_t *e, lv_obj_t *cont, lv_obj_t *kb) {
+void LVGL_App::hide_kb_event_cb(lv_event_t *e, lv_obj_t *cont, Keyboards *kbs) {
   lv_event_code_t code = lv_event_get_code(e);
   if (code == LV_EVENT_READY || code == LV_EVENT_CANCEL || code == LV_EVENT_DELETE) {
+    printf("hkb numeric %p kb password %p\n", kbs->numeric, kbs->password);
     lv_obj_set_height(cont, LV_VER_RES);
-    lv_keyboard_set_textarea(kb, NULL);
-    lv_obj_add_flag(kb, LV_OBJ_FLAG_HIDDEN);
+    lv_keyboard_set_textarea(kbs->numeric, NULL);
+    lv_obj_add_flag(kbs->numeric, LV_OBJ_FLAG_HIDDEN);
+    lv_keyboard_set_textarea(kbs->password, NULL);
+    lv_obj_add_flag(kbs->password, LV_OBJ_FLAG_HIDDEN);
   }
 }
 
 void LVGL_App::hide_kb_event_cb_static(lv_event_t *e) {
-  lv_obj_t *cont  = (lv_obj_t *) lv_event_get_target(e);
-  lv_obj_t *kibod = (lv_obj_t *) lv_event_get_user_data(e);
-  static_cast<LVGL_App *>(lv_event_get_user_data(e))->hide_kb_event_cb(e, cont, kibod);
+  lv_obj_t  *cont = (lv_obj_t *) lv_event_get_target(e);
+  Keyboards *kbs  = (Keyboards *) lv_event_get_user_data(e);
+  static_cast<LVGL_App *>(lv_event_get_user_data(e))->hide_kb_event_cb(e, cont, kbs);
 }
 
 void LVGL_App::ta_event_cb_static(lv_event_t *e) {
@@ -1117,12 +1124,11 @@ lv_obj_t *LVGL_App::modal_create_textarea_input(WidgetParameterData *data, const
   lv_obj_set_style_border_color(textarea, bs_dark, LV_PART_CURSOR | LV_STATE_FOCUSED);
   lv_obj_remove_flag(textarea, LV_OBJ_FLAG_USER_1);
   lv_obj_remove_flag(textarea, LV_OBJ_FLAG_USER_2);
-  if (format != FORMAT_PASSWORD)
-    lv_obj_add_flag(textarea, format == FORMAT_DECIMAL ? LV_OBJ_FLAG_USER_1 : LV_OBJ_FLAG_USER_2);
+  lv_obj_add_flag(textarea, format == FORMAT_DECIMAL ? LV_OBJ_FLAG_USER_1 : LV_OBJ_FLAG_USER_2);
 
   lv_obj_remove_flag(kb_password, LV_OBJ_FLAG_HIDDEN);
   lv_obj_remove_flag(kb_numeric, LV_OBJ_FLAG_HIDDEN);
-  lv_obj_add_event_cb(overlay, hide_kb_event_cb_static, LV_EVENT_ALL, format != FORMAT_PASSWORD ? kb_numeric : kb_password);
+  lv_obj_add_event_cb(overlay, hide_kb_event_cb_static, LV_EVENT_ALL, &keyboards);
   lv_obj_add_event_cb(textarea, ta_event_cb_static, LV_EVENT_ALL, format != FORMAT_PASSWORD ? kb_numeric : kb_password);
   lv_obj_send_event(textarea, LV_EVENT_FOCUSED, NULL);
 

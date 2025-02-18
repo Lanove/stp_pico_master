@@ -130,9 +130,7 @@ void core1_entry() {
   connected_wifi = "NaN";
   wifi_list.push_back("SSID1");
   wifi_list.push_back("SSID2");
-  // for (int i = 0; i < wifi_list.size(); i++) {
-  //   printf("%s", wifi_list[i].c_str());
-  // }
+  
   encoder.set_enable_acceleration(true);
   app.attach_internal_changes_cb(changes_cb);
   app.set_connected_wifi(connected_wifi);

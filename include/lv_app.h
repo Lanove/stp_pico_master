@@ -21,6 +21,11 @@ LV_IMG_DECLARE(STP_SPLASH);
 
 #define SPLASH_ANIM 0
 
+struct Keyboards {
+  lv_obj_t *numeric;
+  lv_obj_t *password;
+};
+
 struct Highlightable_Container {
   lv_obj_t *label;
   lv_obj_t *label2;
@@ -146,6 +151,7 @@ class LVGL_App {
   std::vector<std::string> wifi_list;
   std::string              connected_wifi;
 
+  Keyboards                     keyboards;
   Setting_Highlighted_Container setting_highlight;
   Source_Highlighted_Container  source_highlight;
 
@@ -172,7 +178,7 @@ class LVGL_App {
   void        kb_create_handler(lv_event_t *e);
   static void kb_custom_event_cb_static(lv_event_t *e);
   void        kb_custom_event_cb(lv_event_t *e, lv_obj_t *kb, lv_obj_t *ta);
-  void        hide_kb_event_cb(lv_event_t *e, lv_obj_t *cont, lv_obj_t *kb);
+  void        hide_kb_event_cb(lv_event_t *e, lv_obj_t *cont, Keyboards *kbs);
   static void hide_kb_event_cb_static(lv_event_t *e);
   void        ta_event_cb(lv_event_t *e, lv_obj_t *ta, lv_obj_t *kibod);
   static void ta_event_cb_static(lv_event_t *e);
