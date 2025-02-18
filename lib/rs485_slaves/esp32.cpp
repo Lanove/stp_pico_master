@@ -29,10 +29,10 @@ const char *ESP32::error_to_string(ESP32::status_t error) {
 }
 
 ESP32::status_t ESP32::set_relay_state(uint16_t state, uint8_t index) {
-  mbm->send_message(address, WRITE_SINGLE_REGISTER, Relay_State_Low + index, state, 5, 5);
-  if (!mbm->receive_response(response_buf, 6, 1000))
+  mbm->send_message(address, WRITE_SINGLE_REGISTER, Relay_State_Low + index, state, 5, 3);
+  if (!mbm->receive_response(response_buf, 8, 1000))
     return Timeout;
-  ESP32::status_t status = validate_response(6, WRITE_SINGLE_REGISTER);
+  ESP32::status_t status = validate_response(8, WRITE_SINGLE_REGISTER);
   if (status == No_Error)
     reg.relay_state[index] = state;
   return status;
