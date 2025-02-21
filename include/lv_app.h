@@ -92,11 +92,7 @@ typedef enum {
   Timer,
 } Setting_Highlighted_Container;
 
-typedef enum {
-  Source_AC,
-  Source_DC,
-  Source_Off,
-} Source_Highlighted_Container;
+typedef enum { Source_Off, Source_AC, Source_DC } Source_Highlighted_Container;
 
 typedef enum { MODAL_CONFIRM_EVENT, PROPAGATE_CUTOFF_E, PROPAGATE_CUTOFF_V, PROPAGATE_SETPOINT, PROPAGATE_TIMER, SCAN_WIFI, CONNECT_WIFI } EventType;
 
@@ -124,6 +120,7 @@ class LVGL_App {
 
   void set_setting_highlight(Setting_Highlighted_Container container, bool highlight);
   void set_source_highlight(Source_Highlighted_Container container, bool highlight);
+  void set_start_stop_highlight(bool started);
 
   Setting_Highlighted_Container get_highlighted_setting() { return setting_highlight; }
 
@@ -142,8 +139,14 @@ class LVGL_App {
   void set_wifi_list(std::vector<std::string> wifi_list) { this->wifi_list = wifi_list; }
   void set_connected_wifi(std::string connected_wifi) { this->connected_wifi = connected_wifi; }
 
+  lv_obj_t *modal_create_confirm(WidgetParameterData *modalConfirmData, const char *message, const char *headerText = "Informasi!",
+                                 const lv_font_t *headerFont = &lv_font_montserrat_20, const lv_font_t *messageFont = &lv_font_montserrat_14,
+                                 lv_color_t headerTextColor = bs_white, lv_color_t textColor = bs_white,
+                                 lv_color_t headerColor = lv_palette_main(LV_PALETTE_BLUE), const char *confirmButtonText = "Ok",
+                                 const char *cancelButtonText = "Batal", lv_coord_t xSize = lv_pct(70), lv_coord_t ySize = lv_pct(70));
+
  private:
-  const char              *bottom_home_btns[5] = {"Setpoint", "Cut-off V", "Cut-off E", "Timer", "Settings"};
+  const char              *bottom_home_btns[5] = {"Setpoint", "Cut-off V", "Cut-off E", "Timer", "Wi-Fi"};
   lv_obj_t                *scr_home;
   lv_obj_t                *kb_numeric;
   lv_obj_t                *kb_password;
@@ -202,11 +205,6 @@ class LVGL_App {
                lv_text_align_t alignText = LV_TEXT_ALIGN_CENTER, lv_label_long_mode_t longMode = LV_LABEL_LONG_WRAP, lv_coord_t labelWidth = 0,
                lv_coord_t btnSizeX = 0, lv_coord_t btnSizeY = 0);
 
-  lv_obj_t *modal_create_confirm(WidgetParameterData *modalConfirmData, const char *message, const char *headerText = "Warning!",
-                                 const lv_font_t *headerFont = &lv_font_montserrat_20, const lv_font_t *messageFont = &lv_font_montserrat_14,
-                                 lv_color_t headerTextColor = bs_white, lv_color_t textColor = bs_white,
-                                 lv_color_t headerColor = lv_palette_main(LV_PALETTE_BLUE), const char *confirmButtonText = "Ok",
-                                 const char *cancelButtonText = "Batal", lv_coord_t xSize = lv_pct(70), lv_coord_t ySize = lv_pct(70));
   lv_obj_t *modal_create_textarea_input(WidgetParameterData *data, const char *initialText, const char *headerText, NumberFormatType format,
                                         const lv_font_t *headerFont = &lv_font_montserrat_20, const lv_font_t *textboxFont = &lv_font_montserrat_16,
                                         lv_color_t headerTextColor = bs_white, lv_color_t textColor = bs_dark,

@@ -277,8 +277,8 @@ void LVGL_App::home_screen(uint32_t delay) {
     lv_obj_set_size(start_stop_cont, LV_SIZE_CONTENT, 23);
     lv_obj_set_style_radius(start_stop_cont, 3, LV_PART_MAIN);
     lv_obj_set_style_border_width(start_stop_cont, 0, LV_PART_MAIN);
-    lv_obj_set_style_bg_color(start_stop_cont, lv_palette_main(LV_PALETTE_GREEN), 0);
-    lv_label_set_text(start_stop_label, "STARTED");
+    lv_obj_set_style_bg_color(start_stop_cont, lv_palette_main(LV_PALETTE_RED), 0);
+    lv_label_set_text(start_stop_label, "STOPPED");
     lv_obj_clear_flag(start_stop_cont, LV_OBJ_FLAG_SCROLLABLE);
 
     lv_obj_align(start_stop_label, LV_ALIGN_CENTER, 0, -1);
@@ -418,20 +418,6 @@ void LVGL_App::home_screen(uint32_t delay) {
       lv_obj_set_flex_align(row_container, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
       // Create the third label (align right)
       lv_obj_t *small_label_right = lv_label_create(row_container);
-      lv_label_set_text_fmt(small_label_right, "AC");
-      lv_obj_set_style_text_font(small_label_right, &lv_font_montserrat_16, 0);
-      highlightable_containers.source_ac.container = row_container;
-      highlightable_containers.source_ac.label     = small_label_right;
-    });
-    create_row_container(row_container, 1, [this](lv_obj_t *row_container) {
-      lv_obj_set_style_bg_color(row_container, lv_palette_main(LV_PALETTE_BLUE), 0);
-      lv_obj_set_style_bg_opa(row_container, LV_OPA_TRANSP, 0);
-
-      lv_obj_set_style_radius(row_container, 0, LV_PART_MAIN);
-      lv_obj_set_size(row_container, LV_PCT(100), LV_PCT(100));
-      lv_obj_set_flex_align(row_container, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-      // Create the third label (align right)
-      lv_obj_t *small_label_right = lv_label_create(row_container);
       lv_label_set_text_fmt(small_label_right, "DC");
       lv_obj_set_style_text_font(small_label_right, &lv_font_montserrat_16, 0);
       highlightable_containers.source_dc.container = row_container;
@@ -450,6 +436,20 @@ void LVGL_App::home_screen(uint32_t delay) {
       lv_obj_set_style_text_font(small_label_right, &lv_font_montserrat_16, 0);
       highlightable_containers.source_off.container = row_container;
       highlightable_containers.source_off.label     = small_label_right;
+    });
+    create_row_container(row_container, 1, [this](lv_obj_t *row_container) {
+      lv_obj_set_style_bg_color(row_container, lv_palette_main(LV_PALETTE_BLUE), 0);
+      lv_obj_set_style_bg_opa(row_container, LV_OPA_TRANSP, 0);
+
+      lv_obj_set_style_radius(row_container, 0, LV_PART_MAIN);
+      lv_obj_set_size(row_container, LV_PCT(100), LV_PCT(100));
+      lv_obj_set_flex_align(row_container, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+      // Create the third label (align right)
+      lv_obj_t *small_label_right = lv_label_create(row_container);
+      lv_label_set_text_fmt(small_label_right, "AC");
+      lv_obj_set_style_text_font(small_label_right, &lv_font_montserrat_16, 0);
+      highlightable_containers.source_ac.container = row_container;
+      highlightable_containers.source_ac.label     = small_label_right;
     });
   });
 
@@ -658,6 +658,8 @@ void LVGL_App::home_screen(uint32_t delay) {
       bottom_grid_buttons.timer = btn;
     } else if (i == 4) {
       bottom_grid_buttons.settings = btn;
+      lv_obj_remove_flag(btn, LV_OBJ_FLAG_CLICKABLE);
+      lv_obj_add_state(btn, LV_STATE_DISABLED);
     }
 
     // Add button event handler
@@ -739,6 +741,27 @@ void LVGL_App::app_update(const Big_Labels_Value &big_labels_value, const Settin
       snprintf(temp_str, sizeof(temp_str), "%02d:%02d:%02d", setting_labels_value.timer / 3600, (setting_labels_value.timer % 3600) / 60,
                setting_labels_value.timer % 60);
     lv_label_set_text(highlightable_containers.timer.label, temp_str);
+  }
+
+  if (status_labels_value.temp != prev_status_labels_value.temp) {
+    snprintf(temp_str, sizeof(temp_str), "%d°C", status_labels_value.temp);
+    lv_label_set_text(top_grid_labels.temp_label, temp_str);
+  }
+
+  if (status_labels_value.time_running != prev_status_labels_value.time_running) {
+    snprintf(temp_str, sizeof(temp_str), "%02d:%02d:%02d", status_labels_value.time_running / 3600, (status_labels_value.time_running % 3600) / 60,
+             status_labels_value.time_running % 60);
+    lv_label_set_text(top_grid_labels.timer_label, temp_str);
+  }
+
+  if (status_labels_value.started != prev_status_labels_value.started) {
+    if (status_labels_value.started) {
+      lv_obj_set_style_bg_color(highlightable_containers.start_stop.container, lv_palette_main(LV_PALETTE_GREEN), 0);
+      lv_label_set_text(highlightable_containers.start_stop.label, "STARTED");
+    } else {
+      lv_obj_set_style_bg_color(highlightable_containers.start_stop.container, lv_palette_main(LV_PALETTE_RED), 0);
+      lv_label_set_text(highlightable_containers.start_stop.label, "STOPPED");
+    }
   }
 
   prev_big_labels_value     = big_labels_value;
@@ -845,6 +868,16 @@ void LVGL_App::set_setting_highlight(Setting_Highlighted_Container container, bo
   }
 }
 
+void LVGL_App::set_start_stop_highlight(bool started) {
+  if (started) {
+    lv_obj_set_style_bg_color(highlightable_containers.start_stop.container, lv_palette_main(LV_PALETTE_GREEN), 0);
+    lv_label_set_text(highlightable_containers.start_stop.label, "STARTED");
+  } else {
+    lv_obj_set_style_bg_color(highlightable_containers.start_stop.container, lv_palette_main(LV_PALETTE_RED), 0);
+    lv_label_set_text(highlightable_containers.start_stop.label, "STOPPED");
+  }
+}
+
 void LVGL_App::set_source_highlight(Source_Highlighted_Container container, bool highlight) {
   clear_source_highlight();
   source_highlight = container;
@@ -934,9 +967,11 @@ LVGL_App::modal_create_confirm(WidgetParameterData *modalConfirmData, const char
   lv_obj_add_event_cb(
       okButton,
       [](lv_event_t *e) {
-        WidgetParameterData *modalConfirmData = (WidgetParameterData *) lv_event_get_user_data(e);
-        lv_obj_t            *btn              = (lv_obj_t *) lv_event_get_target(e);
-        lv_obj_send_event(modalConfirmData->issuer, LV_EVENT_REFRESH, modalConfirmData);
+        if (lv_event_get_user_data(e)) {
+          WidgetParameterData *modalConfirmData = (WidgetParameterData *) lv_event_get_user_data(e);
+          lv_obj_send_event(modalConfirmData->issuer, LV_EVENT_REFRESH, modalConfirmData);
+        }
+        lv_obj_t *btn = (lv_obj_t *) lv_event_get_target(e);
         lv_obj_delete(lv_obj_get_parent(lv_obj_get_parent(btn)));
       },
       LV_EVENT_CLICKED, modalConfirmData);

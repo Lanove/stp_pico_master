@@ -10,10 +10,11 @@ class ESP32 {
  public:
   typedef enum {
     Temperature_Value = 0x0000,
-    SSID_Request      = 0x0001,
-    Scan_Request      = 0x0002,
+    Supply_Status     = 0x0001,
+    SSID_Request      = 0x0002,
+    Scan_Request      = 0x0003,
   } input_register_t;
-  
+
   typedef enum {
     Relay_State_Low  = 0x0000,
     Relay_State_High = 0x0001,
@@ -31,7 +32,7 @@ class ESP32 {
   } status_t;
 
   struct Registers {
-    float    temperature = 0.0;
+    float    temperature    = 0.0;
     uint16_t relay_state[2] = {0, 0};
   };
 

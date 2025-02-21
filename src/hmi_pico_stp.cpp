@@ -23,24 +23,25 @@
 #include "pzem017.h"
 #include "xpt2046.h"
 
-
-typedef enum {
-  OFF = 0,
-  AC = 1,
-  DC = 2,
-} ac_dc_off_t;
+struct MachineState {
+  uint16_t                     relay_state[2];
+  bool                         started;
+  Source_Highlighted_Container sensed_source;
+  bool                         polarity;
+};
+static repeating_timer one_sec_timer;
 
 constexpr int processor_mhz = 250;
 
-uint8_t                pin_buzzer = 15;
-uint8_t                pin_start  = 21;
-uint8_t                pin_stop   = 22;
-uint8_t                pin_dc     = 20;
-uint8_t                pin_ac     = 19;
-Differential_Up        stop;
-Differential_Down      start;
-static repeating_timer io_service_timer;
-ac_dc_off_t                ac_dc_off;
+uint8_t                      pin_buzzer = 15;
+uint8_t                      pin_start  = 21;
+uint8_t                      pin_stop   = 22;
+uint8_t                      pin_dc     = 20;
+uint8_t                      pin_ac     = 19;
+Differential_Up              stop;
+Differential_Down            start;
+static repeating_timer       io_service_timer;
+Source_Highlighted_Container ac_dc_off;
 
 uint8_t                encoder_A      = 26;
 uint8_t                encoder_B      = 27;
@@ -76,12 +77,15 @@ Big_Labels_Value     big_labels_value;
 Setting_Labels_Value setting_labels_value;
 Status_Labels_Value  status_labels_value;
 
+MachineState machine_state;
+
 void wifi_cb_dummy(EventData *ed);
 void core1_entry();
 void core0_entry();
 void changes_cb(EventData *data);
 bool encoder_service(struct repeating_timer *t);
 bool input_service(struct repeating_timer *t);
+bool one_sec_service(struct repeating_timer *t);
 
 template <typename T>
 void apply_min_max(T &value, T min, T max) {
@@ -128,8 +132,6 @@ void core0_entry() {
   PulseContact    sample_pulse(1.0);
   Differential_Up sample_up;
 
-  add_repeating_timer_us(10000, input_service, NULL, &io_service_timer);
-
   while (true) {
     sample_pulse.service();
 
@@ -137,7 +139,7 @@ void core0_entry() {
 
     if (0) {
       // if (sample_up.Q()) {
-    
+
       status = pzem017.request_all(pzem017_measurement);
       if (status != PZEM017::No_Error) {
         printf("PZEM017 Error: %s\n", pzem017.error_to_string(status));
@@ -164,7 +166,6 @@ void core0_entry() {
       shared_big_labels_value.wh = pzem017_measurement.energy;
       mutex_exit(&shared_data_mutex);
     }
-
   }
   return;
 }
@@ -174,7 +175,6 @@ void core1_entry() {
   app.app_entry();
 
   encoder.init();
-  add_repeating_timer_us(100, encoder_service, NULL, &encoder_service_timer);
 
   connected_wifi = "NaN";
   wifi_list.push_back("SSID1");
@@ -185,6 +185,10 @@ void core1_entry() {
   app.set_connected_wifi(connected_wifi);
   app.attach_wifi_cb(wifi_cb_dummy);
   app.set_wifi_list(wifi_list);
+
+  add_repeating_timer_ms(10, input_service, NULL, &io_service_timer);
+  add_repeating_timer_us(100, encoder_service, NULL, &encoder_service_timer);
+  add_repeating_timer_ms(1000, one_sec_service, NULL, &one_sec_timer);
 
   while (true) {
     mutex_enter_blocking(&shared_data_mutex);
@@ -198,24 +202,43 @@ void core1_entry() {
     lv_timer_handler();
     sleep_ms(5);
   }
+
   return;
 }
 
+bool one_sec_service(struct repeating_timer *t) {
+  mutex_enter_blocking(&shared_data_mutex);
+  if (shared_status_labels_value.started) {
+    shared_status_labels_value.time_running++;
+    if (shared_status_labels_value.time_running >= shared_setting_labels_value.timer && shared_setting_labels_value.timer != 0) {
+      shared_status_labels_value.started = false;
+      app.modal_create_confirm(nullptr, "Timer telah berakhir, menghentikan load bank");
+    }
+  }
+  mutex_exit(&shared_data_mutex);
+  return true;
+}
+
 bool input_service(struct repeating_timer *t) {
-  static ac_dc_off_t last_ac_dc_off = OFF;
+  static Source_Highlighted_Container last_ac_dc_off = Source_Off;
+  mutex_enter_blocking(&shared_data_mutex);
   start.CLK(gpio_get(pin_start));
   stop.CLK(gpio_get(pin_stop));
-  ac_dc_off = (ac_dc_off_t)((gpio_get(pin_ac) << 1) | gpio_get(pin_dc));
+  ac_dc_off = (Source_Highlighted_Container) ((gpio_get(pin_ac) << 1) | gpio_get(pin_dc));
   if (start.Q()) {
-    printf("Start\n");
+    machine_state.started                   = true;
+    shared_status_labels_value.started      = true;
+    shared_status_labels_value.time_running = 0;
   }
   if (stop.Q()) {
-    printf("Stop\n");
+    machine_state.started              = false;
+    shared_status_labels_value.started = false;
   }
-  if(ac_dc_off != last_ac_dc_off) {
-    printf("AC/DC: %d\n", ac_dc_off);
+  if (ac_dc_off != last_ac_dc_off) {
+    app.set_source_highlight(ac_dc_off, true);
   }
   last_ac_dc_off = ac_dc_off;
+  mutex_exit(&shared_data_mutex);
   return true;
 }
 
