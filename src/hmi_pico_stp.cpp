@@ -27,7 +27,7 @@ struct MachineState {
   uint16_t                     relay_state[2];
   bool                         started;
   Source_Highlighted_Container sensed_source;
-  bool                         polarity;
+  bool                         polarity_flipped;
 };
 static repeating_timer one_sec_timer;
 
@@ -231,16 +231,33 @@ bool one_sec_service(struct repeating_timer *t) {
   return true;
 }
 
+static bool modal_active                  = false;
+void start_cb() {
+  machine_state.started                   = true;
+  shared_status_labels_value.started      = true;
+  shared_status_labels_value.time_running = 0;
+}
+
 bool input_service(struct repeating_timer *t) {
   static Source_Highlighted_Container last_ac_dc_off = Source_Off;
   mutex_enter_blocking(&shared_data_mutex);
   start.CLK(gpio_get(pin_start));
   stop.CLK(gpio_get(pin_stop));
   ac_dc_off = (Source_Highlighted_Container) ((gpio_get(pin_ac) << 1) | gpio_get(pin_dc));
-  if (start.Q()) {
-    machine_state.started                   = true;
-    shared_status_labels_value.started      = true;
-    shared_status_labels_value.time_running = 0;
+  if (start.Q() && !modal_active) {
+    if (machine_state.polarity_flipped) {
+      app.modal_create_confirm(nullptr, start_cb, "Apakah anda yakin ingin memulai load bank?", "Polaritas Terbalik", bs_warning);
+    } else if (ac_dc_off == Source_Off) {
+      // app.modal_create_alert("Sumber daya belum dipilih, silahkan pilih sumber daya terlebih dahulu", "Peringatan!");
+      app.modal_create_confirm(nullptr, start_cb, "Sumber daya belum dipilih\nApakah anda yakin ingin memulai load bank?", "Sumber daya belum dipilih", bs_warning);
+    } else if (ac_dc_off != machine_state.sensed_source) {
+      // app.modal_create_alert("Sumber daya yang dipilih tidak sesuai dengan sumber daya yang terdeteksi");
+      app.modal_create_confirm(nullptr, start_cb, "Sumber daya yang dipilih tidak sesuai dengan sumber daya yang terdeteksi\nApakah anda yakin ingin memulai load bank?", "Sumber daya tidak sesuai", bs_warning);
+    } else if (shared_big_labels_value.v == 0) {
+      app.modal_create_alert("Tegangan belum terdeteksi, silahkan cek koneksi tegangan");
+    } else {
+      start_cb();
+    }
   }
   if (stop.Q()) {
     machine_state.started              = false;

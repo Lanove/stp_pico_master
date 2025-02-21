@@ -101,6 +101,11 @@ struct WidgetParameterData {
   void     *param  = NULL;
 };
 
+struct ModalConfirmData {
+  WidgetParameterData  *data       = nullptr;
+  std::function<void()> confirm_cb = nullptr;
+};
+
 // Custom data structure to pass through events
 struct EventData {
   WidgetParameterData data;
@@ -139,10 +144,10 @@ class LVGL_App {
   void set_wifi_list(std::vector<std::string> wifi_list) { this->wifi_list = wifi_list; }
   void set_connected_wifi(std::string connected_wifi) { this->connected_wifi = connected_wifi; }
 
-  lv_obj_t *modal_create_confirm(WidgetParameterData *modalConfirmData, const char *message, const char *headerText = "Informasi!",
+  lv_obj_t *modal_create_confirm(WidgetParameterData *widgetParameterData, std::function<void()> confirm_cb, const char *message,
+                                 const char *headerText = "Informasi!", lv_color_t headerColor = lv_palette_main(LV_PALETTE_BLUE),
                                  const lv_font_t *headerFont = &lv_font_montserrat_20, const lv_font_t *messageFont = &lv_font_montserrat_14,
-                                 lv_color_t headerTextColor = bs_white, lv_color_t textColor = bs_white,
-                                 lv_color_t headerColor = lv_palette_main(LV_PALETTE_BLUE), const char *confirmButtonText = "Ok",
+                                 lv_color_t headerTextColor = bs_white, lv_color_t textColor = bs_white, const char *confirmButtonText = "Ok",
                                  const char *cancelButtonText = "Batal", lv_coord_t xSize = lv_pct(70), lv_coord_t ySize = lv_pct(70));
 
  private:

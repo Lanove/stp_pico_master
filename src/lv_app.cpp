@@ -956,10 +956,13 @@ void LVGL_App::lvc_label_init(lv_obj_t *label, const lv_font_t *font, lv_align_t
     lv_obj_set_width(label, textWidth);
 }
 
-lv_obj_t *
-LVGL_App::modal_create_confirm(WidgetParameterData *modalConfirmData, const char *message, const char *headerText, const lv_font_t *headerFont,
-                               const lv_font_t *messageFont, lv_color_t headerTextColor, lv_color_t textColor, lv_color_t headerColor,
-                               const char *confirmButtonText, const char *cancelButtonText, lv_coord_t xSize, lv_coord_t ySize) {
+lv_obj_t *LVGL_App::modal_create_confirm(WidgetParameterData *widgetParameterData, std::function<void()> confirm_cb, const char *message,
+                                         const char *headerText, lv_color_t headerColor, const lv_font_t *headerFont, const lv_font_t *messageFont,
+                                         lv_color_t headerTextColor, lv_color_t textColor, const char *confirmButtonText,
+                                         const char *cancelButtonText, lv_coord_t xSize, lv_coord_t ySize) {
+  static ModalConfirmData modalConfirmData;
+  modalConfirmData.data       = widgetParameterData;
+  modalConfirmData.confirm_cb = confirm_cb;
   lv_obj_t *modal =
       modal_create_alert(message, headerText, headerFont, messageFont, headerTextColor, textColor, headerColor, cancelButtonText, xSize, ySize);
   lv_obj_t *okButton = lv_button_create(modal);
@@ -968,13 +971,16 @@ LVGL_App::modal_create_confirm(WidgetParameterData *modalConfirmData, const char
       okButton,
       [](lv_event_t *e) {
         if (lv_event_get_user_data(e)) {
-          WidgetParameterData *modalConfirmData = (WidgetParameterData *) lv_event_get_user_data(e);
-          lv_obj_send_event(modalConfirmData->issuer, LV_EVENT_REFRESH, modalConfirmData);
+          ModalConfirmData *modalConfirmData = (ModalConfirmData *) lv_event_get_user_data(e);
+          if (modalConfirmData->data)
+            lv_obj_send_event(modalConfirmData->data->issuer, LV_EVENT_REFRESH, modalConfirmData);
+          if (modalConfirmData->confirm_cb)
+            modalConfirmData->confirm_cb();
         }
         lv_obj_t *btn = (lv_obj_t *) lv_event_get_target(e);
         lv_obj_delete(lv_obj_get_parent(lv_obj_get_parent(btn)));
       },
-      LV_EVENT_CLICKED, modalConfirmData);
+      LV_EVENT_CLICKED, &modalConfirmData);
   return modal;
 }
 lv_obj_t *LVGL_App::lvc_create_loading(lv_obj_t *parent, const char *message) {
