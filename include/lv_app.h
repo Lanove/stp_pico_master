@@ -127,10 +127,10 @@ class LVGL_App {
   void attach_internal_changes_cb(std::function<void(EventData *)> internal_changes_cb) { this->internal_changes_cb = internal_changes_cb; }
   void attach_wifi_cb(std::function<void(EventData *)> wifi_cb) { this->wifi_cb = wifi_cb; }
 
-  lv_obj_t *modal_create_alert(const char *message, const char *headerText = "Warning!", const lv_font_t *headerFont = &lv_font_montserrat_20,
-                               const lv_font_t *messageFont = &lv_font_montserrat_14, lv_color_t headerTextColor = bs_dark,
-                               lv_color_t textColor = bs_white, lv_color_t headerColor = bs_warning, const char *buttonText = "Ok",
-                               lv_coord_t xSize = lv_pct(70), lv_coord_t ySize = lv_pct(70));
+  lv_obj_t *modal_create_alert(const char *message, const char *headerText = "Informasi!", const lv_font_t *headerFont = &lv_font_montserrat_20,
+                               const lv_font_t *messageFont = &lv_font_montserrat_14, lv_color_t headerTextColor = bs_white,
+                               lv_color_t textColor = bs_white, lv_color_t headerColor = lv_palette_main(LV_PALETTE_BLUE),
+                               const char *buttonText = "Ok", lv_coord_t xSize = lv_pct(70), lv_coord_t ySize = lv_pct(70));
 
   lv_obj_t *modal_create_setting(const lv_font_t *headerFont = &lv_font_montserrat_20, const lv_font_t *messageFont = &lv_font_montserrat_14,
                                  lv_color_t headerTextColor = bs_white, lv_color_t textColor = bs_white, lv_color_t headerColor = bs_warning,

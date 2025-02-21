@@ -211,17 +211,17 @@ bool one_sec_service(struct repeating_timer *t) {
     shared_status_labels_value.time_running++;
     if (shared_status_labels_value.time_running >= shared_setting_labels_value.timer && shared_setting_labels_value.timer != 0) {
       shared_status_labels_value.started = false;
-      app.modal_create_confirm(nullptr, "Timer telah berakhir, menghentikan load bank");
+      app.modal_create_alert("Timer telah berakhir, menghentikan load bank");
     }
     if (shared_setting_labels_value.cutoff_e != 0 && shared_big_labels_value.wh >= shared_setting_labels_value.cutoff_e) {
       shared_status_labels_value.started = false;
-      app.modal_create_confirm(nullptr, "Energi telah mencapai batas, menghentikan load bank");
+      app.modal_create_alert("Energi telah mencapai batas, menghentikan load bank");
     }
     if (shared_setting_labels_value.cutoff_v != 0) {
       // Check for falling edge: previous voltage > cutoff && current voltage <= cutoff
       if (last_voltage > shared_setting_labels_value.cutoff_v && shared_big_labels_value.v <= shared_setting_labels_value.cutoff_v) {
         shared_status_labels_value.started = false;
-        app.modal_create_confirm(nullptr, "Tegangan telah mencapai batas bawah, menghentikan load bank");
+        app.modal_create_alert("Tegangan telah mencapai batas bawah, menghentikan load bank");
       }
     }
     // Update the previous voltage value
