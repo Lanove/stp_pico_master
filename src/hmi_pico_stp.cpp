@@ -19,10 +19,28 @@
 #include "pico/stdlib.h"
 #include "pico/sync.h"
 #include "pico/time.h"
+#include "plc_utility.hpp"
 #include "pzem017.h"
 #include "xpt2046.h"
 
+
+typedef enum {
+  OFF = 0,
+  AC = 1,
+  DC = 2,
+} ac_dc_off_t;
+
 constexpr int processor_mhz = 250;
+
+uint8_t                pin_buzzer = 15;
+uint8_t                pin_start  = 21;
+uint8_t                pin_stop   = 22;
+uint8_t                pin_dc     = 20;
+uint8_t                pin_ac     = 19;
+Differential_Up        stop;
+Differential_Down      start;
+static repeating_timer io_service_timer;
+ac_dc_off_t                ac_dc_off;
 
 uint8_t                encoder_A      = 26;
 uint8_t                encoder_B      = 27;
@@ -53,10 +71,17 @@ mutex_t              shared_data_mutex;
 std::vector<std::string> wifi_list;
 std::string              connected_wifi;
 
+LVGL_App             app;
+Big_Labels_Value     big_labels_value;
+Setting_Labels_Value setting_labels_value;
+Status_Labels_Value  status_labels_value;
+
 void wifi_cb_dummy(EventData *ed);
 void core1_entry();
 void core0_entry();
 void changes_cb(EventData *data);
+bool encoder_service(struct repeating_timer *t);
+bool input_service(struct repeating_timer *t);
 
 template <typename T>
 void apply_min_max(T &value, T min, T max) {
@@ -86,63 +111,70 @@ int main() {
 void core0_entry() {
   mbm.init();
 
-  gpio_init(15);
-  gpio_set_dir(15, GPIO_OUT);
+  gpio_init(pin_buzzer);
+  gpio_init(pin_start);
+  gpio_init(pin_stop);
+  gpio_init(pin_ac);
+  gpio_init(pin_dc);
+  gpio_set_dir(pin_buzzer, GPIO_OUT);
+  gpio_set_dir(pin_start, GPIO_IN);
+  gpio_set_dir(pin_stop, GPIO_IN);
+  gpio_set_dir(pin_ac, GPIO_IN);
+  gpio_set_dir(pin_dc, GPIO_IN);
   PZEM017::status_t status;
   ESP32::status_t   esp_status;
-  float temperature;
+  float             temperature;
+
+  PulseContact    sample_pulse(1.0);
+  Differential_Up sample_up;
+
+  add_repeating_timer_us(10000, input_service, NULL, &io_service_timer);
+
   while (true) {
-    status = pzem017.request_all(pzem017_measurement);
-    if (status != PZEM017::No_Error) {
-      printf("Error: %s\n", pzem017.error_to_string(status));
+    sample_pulse.service();
+
+    sample_up.CLK(sample_pulse.Q());
+
+    if (0) {
+      // if (sample_up.Q()) {
+    
+      status = pzem017.request_all(pzem017_measurement);
+      if (status != PZEM017::No_Error) {
+        printf("PZEM017 Error: %s\n", pzem017.error_to_string(status));
+      }
+
+      esp_status = esp32.set_relay_state(esp32.get_reg().relay_state[0] + 1, 0);
+      if (esp_status != ESP32::No_Error) {
+        printf("ESP32 Error: %s\n", esp32.error_to_string(esp_status));
+      }
+      esp_status = esp32.set_relay_state(esp32.get_reg().relay_state[1] + 1, 1);
+      if (esp_status != ESP32::No_Error) {
+        printf("ESP32 Error: %s\n", esp32.error_to_string(esp_status));
+      }
+
+      esp_status = esp32.request_temperature(temperature);
+      if (esp_status == ESP32::No_Error) {
+        printf("Temperature: %f\n", temperature);
+      }
+
+      mutex_enter_blocking(&shared_data_mutex);
+      shared_big_labels_value.v  = pzem017_measurement.voltage;
+      shared_big_labels_value.a  = pzem017_measurement.current;
+      shared_big_labels_value.w  = pzem017_measurement.power;
+      shared_big_labels_value.wh = pzem017_measurement.energy;
+      mutex_exit(&shared_data_mutex);
     }
 
-    esp_status = esp32.set_relay_state(esp32.get_reg().relay_state[0] + 1, 0);
-    if (esp_status != ESP32::No_Error) {
-      printf("Error: %s\n", esp32.error_to_string(esp_status));
-    }
-    esp_status = esp32.set_relay_state(esp32.get_reg().relay_state[1] + 1, 1);
-    if (esp_status != ESP32::No_Error) {
-      printf("Error: %s\n", esp32.error_to_string(esp_status));
-    }
-    esp_status = esp32.request_temperature(temperature);
-    if(esp_status == ESP32::No_Error){
-      printf("Temperature: %f\n", temperature);
-    }
-    mutex_enter_blocking(&shared_data_mutex);
-    shared_big_labels_value.v  = pzem017_measurement.voltage;
-    shared_big_labels_value.a  = pzem017_measurement.current;
-    shared_big_labels_value.w  = pzem017_measurement.power;
-    shared_big_labels_value.wh = pzem017_measurement.energy;
-    mutex_exit(&shared_data_mutex);
-
-    sleep_ms(1000);
   }
   return;
 }
 
 void core1_entry() {
-  LVGL_App             app;
-  Big_Labels_Value     big_labels_value;
-  Setting_Labels_Value setting_labels_value;
-  Status_Labels_Value  status_labels_value;
-
   lvgl_display_init();
   app.app_entry();
 
   encoder.init();
-  add_repeating_timer_us(
-      100,
-      [](struct repeating_timer *t) -> bool {
-        encoder.service();
-        return true;
-      },
-      NULL, &encoder_service_timer);
-
-  int encoder_value           = 0;
-  int last_encoder_value      = 0;
-  int undivided_encoder_value = 0;
-  int encoder_delta           = 0;
+  add_repeating_timer_us(100, encoder_service, NULL, &encoder_service_timer);
 
   connected_wifi = "NaN";
   wifi_list.push_back("SSID1");
@@ -156,52 +188,9 @@ void core1_entry() {
 
   while (true) {
     mutex_enter_blocking(&shared_data_mutex);
-
     big_labels_value     = shared_big_labels_value;
     setting_labels_value = shared_setting_labels_value;
     status_labels_value  = shared_status_labels_value;
-    big_labels_value.v   = 220;
-
-    undivided_encoder_value += encoder.get_value();
-    encoder_value          = undivided_encoder_value / 4;
-    ClickEncoder::Button b = encoder.get_button();
-
-    encoder_delta = encoder_value - last_encoder_value;
-
-    Setting_Highlighted_Container highlighted_setting = app.get_highlighted_setting();
-    switch (highlighted_setting) {
-    case Setpoint:
-      encoder.set_enable_acceleration(false);
-      shared_setting_labels_value.setpoint += encoder_delta * 5.0;
-      apply_min_max<float>(shared_setting_labels_value.setpoint, 0.0, 100.0);
-      break;
-    case Timer:
-      encoder.set_enable_acceleration(true);
-      encoder.set_acceleration_properties(300, 5, 64000);
-      shared_setting_labels_value.timer += encoder_delta;
-      apply_min_max<int32_t>(shared_setting_labels_value.timer, 0, 1000000);
-      break;
-    case CutOff_V:
-      encoder.set_enable_acceleration(true);
-      encoder.set_acceleration_properties(200, 10, 16000);
-      shared_setting_labels_value.cutoff_v += encoder_delta * 0.1;
-      apply_min_max<float>(shared_setting_labels_value.cutoff_v, 0.0, 300.0);
-      break;
-    case CutOff_E:
-      encoder.set_enable_acceleration(true);
-      encoder.set_acceleration_properties(400, 10, 32000);
-      shared_setting_labels_value.cutoff_e += encoder_delta * 1.0;
-      apply_min_max<float>(shared_setting_labels_value.cutoff_e, 0.0, 1000000.0);
-      break;
-    }
-
-    if (b == ClickEncoder::Clicked) {
-      highlighted_setting = static_cast<Setting_Highlighted_Container>((highlighted_setting + 1) % 4);
-      app.set_setting_highlight(highlighted_setting, true);
-    }
-
-    last_encoder_value = encoder_value;
-
     mutex_exit(&shared_data_mutex);
 
     app.app_update(big_labels_value, setting_labels_value, status_labels_value);
@@ -210,6 +199,71 @@ void core1_entry() {
     sleep_ms(5);
   }
   return;
+}
+
+bool input_service(struct repeating_timer *t) {
+  static ac_dc_off_t last_ac_dc_off = OFF;
+  start.CLK(gpio_get(pin_start));
+  stop.CLK(gpio_get(pin_stop));
+  ac_dc_off = (ac_dc_off_t)((gpio_get(pin_ac) << 1) | gpio_get(pin_dc));
+  if (start.Q()) {
+    printf("Start\n");
+  }
+  if (stop.Q()) {
+    printf("Stop\n");
+  }
+  if(ac_dc_off != last_ac_dc_off) {
+    printf("AC/DC: %d\n", ac_dc_off);
+  }
+  last_ac_dc_off = ac_dc_off;
+  return true;
+}
+
+bool encoder_service(struct repeating_timer *t) {
+  static int encoder_value           = 0;
+  static int last_encoder_value      = 0;
+  static int undivided_encoder_value = 0;
+  static int encoder_delta           = 0;
+
+  mutex_enter_blocking(&shared_data_mutex);
+  undivided_encoder_value += encoder.get_value();
+  encoder_value                                     = undivided_encoder_value / 4;
+  ClickEncoder::Button b                            = encoder.get_button();
+  encoder_delta                                     = encoder_value - last_encoder_value;
+  Setting_Highlighted_Container highlighted_setting = app.get_highlighted_setting();
+  switch (highlighted_setting) {
+  case Setpoint:
+    encoder.set_enable_acceleration(false);
+    shared_setting_labels_value.setpoint += encoder_delta * 5.0;
+    apply_min_max<float>(shared_setting_labels_value.setpoint, 0.0, 100.0);
+    break;
+  case Timer:
+    encoder.set_enable_acceleration(true);
+    encoder.set_acceleration_properties(300, 5, 64000);
+    shared_setting_labels_value.timer += encoder_delta;
+    apply_min_max<int32_t>(shared_setting_labels_value.timer, 0, 1000000);
+    break;
+  case CutOff_V:
+    encoder.set_enable_acceleration(true);
+    encoder.set_acceleration_properties(200, 10, 16000);
+    shared_setting_labels_value.cutoff_v += encoder_delta * 0.1;
+    apply_min_max<float>(shared_setting_labels_value.cutoff_v, 0.0, 300.0);
+    break;
+  case CutOff_E:
+    encoder.set_enable_acceleration(true);
+    encoder.set_acceleration_properties(400, 10, 32000);
+    shared_setting_labels_value.cutoff_e += encoder_delta * 1.0;
+    apply_min_max<float>(shared_setting_labels_value.cutoff_e, 0.0, 1000000.0);
+    break;
+  }
+  if (b == ClickEncoder::Clicked) {
+    highlighted_setting = static_cast<Setting_Highlighted_Container>((highlighted_setting + 1) % 4);
+    app.set_setting_highlight(highlighted_setting, true);
+  }
+  last_encoder_value = encoder_value;
+  mutex_exit(&shared_data_mutex);
+  encoder.service();
+  return true;
 }
 
 void wifi_cb_dummy(EventData *ed) {
