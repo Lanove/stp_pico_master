@@ -138,8 +138,6 @@ void core0_entry() {
     sample_up.CLK(sample_pulse.Q());
 
     if (0) {
-      // if (sample_up.Q()) {
-
       status = pzem017.request_all(pzem017_measurement);
       if (status != PZEM017::No_Error) {
         printf("PZEM017 Error: %s\n", pzem017.error_to_string(status));
@@ -207,6 +205,7 @@ void core1_entry() {
 }
 
 bool one_sec_service(struct repeating_timer *t) {
+  static float last_voltage = shared_big_labels_value.v;  // store the previous voltage value
   mutex_enter_blocking(&shared_data_mutex);
   if (shared_status_labels_value.started) {
     shared_status_labels_value.time_running++;
@@ -214,6 +213,19 @@ bool one_sec_service(struct repeating_timer *t) {
       shared_status_labels_value.started = false;
       app.modal_create_confirm(nullptr, "Timer telah berakhir, menghentikan load bank");
     }
+    if (shared_setting_labels_value.cutoff_e != 0 && shared_big_labels_value.wh >= shared_setting_labels_value.cutoff_e) {
+      shared_status_labels_value.started = false;
+      app.modal_create_confirm(nullptr, "Energi telah mencapai batas, menghentikan load bank");
+    }
+    if (shared_setting_labels_value.cutoff_v != 0) {
+      // Check for falling edge: previous voltage > cutoff && current voltage <= cutoff
+      if (last_voltage > shared_setting_labels_value.cutoff_v && shared_big_labels_value.v <= shared_setting_labels_value.cutoff_v) {
+        shared_status_labels_value.started = false;
+        app.modal_create_confirm(nullptr, "Tegangan telah mencapai batas bawah, menghentikan load bank");
+      }
+    }
+    // Update the previous voltage value
+    last_voltage = shared_big_labels_value.v;
   }
   mutex_exit(&shared_data_mutex);
   return true;
