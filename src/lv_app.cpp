@@ -703,8 +703,8 @@ void LVGL_App::app_update(const Big_Labels_Value &big_labels_value, const Settin
   }
 
   if (setting_labels_value.setpoint != prev_setting_labels_value.setpoint) {
-    const float resistance_map[] = {1e20,     80.,      80. / 2,  80. / 3,  80. / 4,  80. / 5,  80. / 6,  80. / 7,  80. / 8,  80. / 9, 80. / 10,
-                                    80. / 11, 80. / 12, 80. / 13, 80. / 14, 80. / 15, 80. / 16, 80. / 17, 80. / 18, 80. / 19, 80. / 20};
+    const float resistance_map[] = {9e6,     76.9,      39,  27.6,  20.9,  16,  13.6,  11.6,  10.1,  9, 8.2,
+                                    7.4, 6.8, 6.4, 6, 5.6, 5.2, 5.0, 4.5, 4.3, 4.1};
     int         resistance_idx   = (int) setting_labels_value.setpoint / 5.;
     float       wattage_estimate = ((big_labels_value.v * big_labels_value.v) / resistance_map[resistance_idx]);
 

@@ -112,6 +112,8 @@ int main() {
   core0_entry();
 }
 
+uint16_t test_relay_state[2] = {0, 0};
+
 void core0_entry() {
   mbm.init();
 
@@ -120,6 +122,7 @@ void core0_entry() {
   gpio_init(pin_stop);
   gpio_init(pin_ac);
   gpio_init(pin_dc);
+  
   gpio_set_dir(pin_buzzer, GPIO_OUT);
   gpio_set_dir(pin_start, GPIO_IN);
   gpio_set_dir(pin_stop, GPIO_IN);
@@ -137,25 +140,25 @@ void core0_entry() {
 
     sample_up.CLK(sample_pulse.Q());
 
-    if (0) {
-      status = pzem017.request_all(pzem017_measurement);
-      if (status != PZEM017::No_Error) {
-        printf("PZEM017 Error: %s\n", pzem017.error_to_string(status));
-      }
+    if (sample_up.Q()) {
+      // status = pzem017.request_all(pzem017_measurement);
+      // if (status != PZEM017::No_Error) {
+      //   printf("PZEM017 Error: %s\n", pzem017.error_to_string(status));
+      // }
 
-      esp_status = esp32.set_relay_state(esp32.get_reg().relay_state[0] + 1, 0);
+      esp_status = esp32.set_relay_state(test_relay_state[0], 0);
       if (esp_status != ESP32::No_Error) {
         printf("ESP32 Error: %s\n", esp32.error_to_string(esp_status));
       }
-      esp_status = esp32.set_relay_state(esp32.get_reg().relay_state[1] + 1, 1);
+      esp_status = esp32.set_relay_state(test_relay_state[1], 1);
       if (esp_status != ESP32::No_Error) {
         printf("ESP32 Error: %s\n", esp32.error_to_string(esp_status));
       }
 
-      esp_status = esp32.request_temperature(temperature);
-      if (esp_status == ESP32::No_Error) {
-        printf("Temperature: %f\n", temperature);
-      }
+      // esp_status = esp32.request_temperature(temperature);
+      // if (esp_status == ESP32::No_Error) {
+      //   printf("Temperature: %f\n", temperature);
+      // }
 
       mutex_enter_blocking(&shared_data_mutex);
       shared_big_labels_value.v  = pzem017_measurement.voltage;
@@ -231,12 +234,14 @@ bool one_sec_service(struct repeating_timer *t) {
   return true;
 }
 
-static bool modal_active                  = false;
-void start_cb() {
+static bool modal_active = false;
+void        start_cb() {
   machine_state.started                   = true;
   shared_status_labels_value.started      = true;
   shared_status_labels_value.time_running = 0;
 }
+
+uint8_t shift_counter = 0;
 
 bool input_service(struct repeating_timer *t) {
   static Source_Highlighted_Container last_ac_dc_off = Source_Off;
@@ -244,21 +249,43 @@ bool input_service(struct repeating_timer *t) {
   start.CLK(gpio_get(pin_start));
   stop.CLK(gpio_get(pin_stop));
   ac_dc_off = (Source_Highlighted_Container) ((gpio_get(pin_ac) << 1) | gpio_get(pin_dc));
-  if (start.Q() && !modal_active) {
-    if (machine_state.polarity_flipped) {
-      app.modal_create_confirm(nullptr, start_cb, "Apakah anda yakin ingin memulai load bank?", "Polaritas Terbalik", bs_warning);
-    } else if (ac_dc_off == Source_Off) {
-      // app.modal_create_alert("Sumber daya belum dipilih, silahkan pilih sumber daya terlebih dahulu", "Peringatan!");
-      app.modal_create_confirm(nullptr, start_cb, "Sumber daya belum dipilih\nApakah anda yakin ingin memulai load bank?", "Sumber daya belum dipilih", bs_warning);
-    } else if (ac_dc_off != machine_state.sensed_source) {
-      // app.modal_create_alert("Sumber daya yang dipilih tidak sesuai dengan sumber daya yang terdeteksi");
-      app.modal_create_confirm(nullptr, start_cb, "Sumber daya yang dipilih tidak sesuai dengan sumber daya yang terdeteksi\nApakah anda yakin ingin memulai load bank?", "Sumber daya tidak sesuai", bs_warning);
-    } else if (shared_big_labels_value.v == 0) {
-      app.modal_create_alert("Tegangan belum terdeteksi, silahkan cek koneksi tegangan");
-    } else {
-      start_cb();
+  if (start.Q()) {
+    if (shift_counter < 12)
+      test_relay_state[0] |= (1 << shift_counter);
+    else
+      test_relay_state[1] |= (1 << (shift_counter - 12));
+    
+    for(int i = 0; i <12; i++){
+      printf("%d", (test_relay_state[0] >> i) & 1);
+    }
+    printf(" ");
+    for(int i = 0; i <8; i++){
+      printf("%d", (test_relay_state[1] >> i) & 1);
+    }
+    printf("\n");
+    shift_counter++;
+    if(shift_counter > 20){
+      shift_counter = 0;
+      test_relay_state[0] = 0;
+      test_relay_state[1] = 0;
     }
   }
+  // if (start.Q() && !modal_active) {
+  //   if (machine_state.polarity_flipped) {
+  //     app.modal_create_confirm(nullptr, start_cb, "Apakah anda yakin ingin memulai load bank?", "Polaritas Terbalik", bs_warning);
+  //   } else if (ac_dc_off == Source_Off) {
+  //     // app.modal_create_alert("Sumber daya belum dipilih, silahkan pilih sumber daya terlebih dahulu", "Peringatan!");
+  //     app.modal_create_confirm(nullptr, start_cb, "Sumber daya belum dipilih\nApakah anda yakin ingin memulai load bank?", "Sumber daya belum dipilih", bs_warning);
+  //   } else if (ac_dc_off != machine_state.sensed_source) {
+  //     // app.modal_create_alert("Sumber daya yang dipilih tidak sesuai dengan sumber daya yang terdeteksi");
+  //     app.modal_create_confirm(nullptr, start_cb, "Sumber daya yang dipilih tidak sesuai dengan sumber daya yang terdeteksi\nApakah anda yakin ingin memulai load bank?", "Sumber daya tidak sesuai", bs_warning);
+  //   } else if (shared_big_labels_value.v == 0) {
+  //     app.modal_create_alert("Tegangan belum terdeteksi, silahkan cek koneksi tegangan");
+  //   } else {
+  //     start_cb();
+  //   }
+  // }
+
   if (stop.Q()) {
     machine_state.started              = false;
     shared_status_labels_value.started = false;
