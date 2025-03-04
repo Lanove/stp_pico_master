@@ -50,7 +50,7 @@ class ESP32 {
  private:
   ModbusMaster *mbm;
   uint8_t       address;
-  uint8_t       response_buf[32];
+  uint8_t       *response_buf;
 
   Registers reg;
 

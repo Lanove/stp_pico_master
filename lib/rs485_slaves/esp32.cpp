@@ -3,6 +3,7 @@
 ESP32::ESP32(ModbusMaster &mbm, uint8_t address) {
   this->mbm     = &mbm;
   this->address = address;
+  response_buf  = mbm.get_response_buffer();
 }
 
 const char *ESP32::error_to_string(ESP32::status_t error) {

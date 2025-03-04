@@ -97,7 +97,7 @@ public:
 private:
   ModbusMaster *mbm;
   uint8_t address;
-  uint8_t response_buf[32];
+  uint8_t *response_buf;
 
   status_t validate_response(uint response_len,
                              modbus_function_code_t function);

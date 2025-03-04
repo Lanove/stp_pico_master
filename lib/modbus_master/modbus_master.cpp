@@ -1,29 +1,28 @@
 #include "modbus_master.h"
-void ModbusMaster::send_message(uint8_t slave_addr,
-                                modbus_function_code_t function,
-                                uint16_t reg_addr, uint16_t reg_count, uint pre_tx_delay, uint post_tx_delay) {
+void ModbusMaster::send_message(uint8_t slave_addr, modbus_function_code_t function, uint16_t reg_addr, uint16_t reg_count, uint pre_tx_delay,
+                                uint post_tx_delay) {
   int frame_size = 8;
   if (reg_count == 0xFFFF) {
     frame_size = 4;
-    frame[0] = slave_addr;
-    frame[1] = function;
+    frame[0]   = slave_addr;
+    frame[1]   = function;
     // Calculate CRC
     uint16_t crc = modbus_crc(frame, 2);
-    frame[2] = crc & 0xFF;
-    frame[3] = crc >> 8;
+    frame[2]     = crc & 0xFF;
+    frame[3]     = crc >> 8;
   } else {
     frame_size = 8;
-    frame[0] = slave_addr;
-    frame[1] = function;
-    frame[2] = reg_addr >> 8;    // High byte
-    frame[3] = reg_addr & 0xFF;  // Low byte
-    frame[4] = reg_count >> 8;   // High byte
-    frame[5] = reg_count & 0xFF; // Low byte
+    frame[0]   = slave_addr;
+    frame[1]   = function;
+    frame[2]   = reg_addr >> 8;     // High byte
+    frame[3]   = reg_addr & 0xFF;   // Low byte
+    frame[4]   = reg_count >> 8;    // High byte
+    frame[5]   = reg_count & 0xFF;  // Low byte
 
     // Calculate CRC
     uint16_t crc = modbus_crc(frame, 6);
-    frame[6] = crc & 0xFF;
-    frame[7] = crc >> 8;
+    frame[6]     = crc & 0xFF;
+    frame[7]     = crc >> 8;
   }
 
   // Enable transmit mode
@@ -37,23 +36,29 @@ void ModbusMaster::send_message(uint8_t slave_addr,
   gpio_put(de_re_pin, 0);
 }
 
-bool ModbusMaster::receive_response(uint8_t *resp, uint8_t len,
-                                    uint32_t timeout_ms) {
+bool ModbusMaster::receive_response(uint8_t *resp, size_t len, uint32_t timeout_ms, size_t max_buffer_size) {
+  if (len < 2 || len > max_buffer_size) {
+    return false;  // Invalid length
+  }
+
   uint32_t start_time = to_ms_since_boot(get_absolute_time());
-  uint8_t index = 0;
+  size_t  index      = 0;
 
   while ((to_ms_since_boot(get_absolute_time()) - start_time) < timeout_ms) {
     if (uart_is_readable(uart_id)) {
+      if (index >= max_buffer_size) {
+        return false;  // Buffer overflow protection
+      }
       uart_read_blocking(uart_id, &resp[index], 1);
       if (++index >= len)
         break;
     }
   }
 
-  // Verify CRC
-  if (index >= 5) { // Minimum valid response length
-    uint16_t crc = modbus_crc(resp, index - 2);
-    if ((resp[index - 2] == (crc & 0xFF)) && (resp[index - 1] == (crc >> 8))) {
+  // After the read loop...
+  if (index == len) {  // Ensure exactly 'len' bytes were received
+    uint16_t crc = modbus_crc(resp, len - 2);
+    if (resp[len - 2] == (crc & 0xFF) && resp[len - 1] == (crc >> 8)) {
       return true;
     }
   }
@@ -65,7 +70,7 @@ uint16_t ModbusMaster::modbus_crc(uint8_t *buf, int len) {
   uint16_t crc = 0xFFFF;
 
   for (int pos = 0; pos < len; pos++) {
-    crc ^= (uint16_t)buf[pos];
+    crc ^= (uint16_t) buf[pos];
 
     for (int i = 8; i != 0; i--) {
       if ((crc & 0x0001) != 0) {

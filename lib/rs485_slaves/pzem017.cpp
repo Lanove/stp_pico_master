@@ -3,6 +3,7 @@
 PZEM017::PZEM017(ModbusMaster &mbm, uint8_t address) {
   this->mbm = &mbm;
   this->address = address;
+  this->response_buf = mbm.get_response_buffer();
 }
 
 PZEM017::status_t PZEM017::request_all(measurement_t &output) {
