@@ -15,8 +15,8 @@ PZEM017::status_t PZEM017::request_all(measurement_t &output) {
     return status;
 
   // Parse values
-  uint16_t voltage = (response_buf[3] << 8) | response_buf[4];
-  uint16_t current = (response_buf[5] << 8) | response_buf[6];
+  uint16_t voltage            = (response_buf[3] << 8) | response_buf[4];
+  uint16_t current            = (response_buf[5] << 8) | response_buf[6];
   uint16_t power_lsb          = (response_buf[7] << 8) | response_buf[8];
   uint16_t power_msb          = (response_buf[9] << 8) | response_buf[10];
   uint32_t power_raw          = ((uint32_t) power_msb << 16) | (uint16_t) power_lsb;
@@ -103,8 +103,10 @@ PZEM017::status_t PZEM017::reset_energy() {
 
 PZEM017::status_t PZEM017::calibrate() {
   mbm->send_message(0xF8, (modbus_function_code_t) (Calibration), 0, 0xF170, 5, 5);
-  if (!mbm->receive_response(response_buf, 6, 5000))
+  if (!mbm->receive_response(response_buf, 6, 10000)) {
+    printf("Calibration Timeout\n");
     return Timeout;
+  }
   PZEM017::status_t status = validate_response(6, (modbus_function_code_t) Calibration, 0xF8);
   return status;
 }

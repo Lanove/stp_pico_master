@@ -43,7 +43,6 @@ void ModbusMaster::send_message(uint8_t slave_addr, modbus_function_code_t funct
   // Enable transmit mode
   gpio_put(de_re_pin, 1);
   sleep_ms(pre_tx_delay);
-
   uart_write_blocking(uart_id, frame, frame_size);
   // Wait for transmission to complete
   sleep_ms(post_tx_delay);

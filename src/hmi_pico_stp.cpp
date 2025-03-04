@@ -20,6 +20,7 @@
 #include "pico/sync.h"
 #include "pico/time.h"
 #include "plc_utility.hpp"
+#include "pzem016.h"
 #include "pzem017.h"
 #include "xpt2046.h"
 
@@ -59,9 +60,11 @@ uint32_t      modbus_stop_bits = 2;
 uart_parity_t modbus_parity    = UART_PARITY_NONE;
 ModbusMaster  mbm = ModbusMaster(modbus_de_re, modbus_rx, modbus_tx, modbus_uart, modbus_baudrate, modbus_data_bits, modbus_stop_bits, modbus_parity);
 
+PZEM016                pzem016 = PZEM016(mbm, 0x01);
 PZEM017                pzem017 = PZEM017(mbm, 0x02);
 ESP32                  esp32   = ESP32(mbm, 0x03);
 PZEM017::measurement_t pzem017_measurement;
+PZEM016::measurement_t pzem016_measurement;
 
 // Following variabbles are shared between the two cores
 Big_Labels_Value     shared_big_labels_value;
@@ -128,7 +131,8 @@ void core0_entry() {
   gpio_set_dir(pin_stop, GPIO_IN);
   gpio_set_dir(pin_ac, GPIO_IN);
   gpio_set_dir(pin_dc, GPIO_IN);
-  PZEM017::status_t status;
+  PZEM017::status_t pzem017_status;
+  PZEM016::status_t pzem016_status;
   ESP32::status_t   esp_status;
   float             temperature;
 
@@ -142,16 +146,24 @@ void core0_entry() {
 
     if (sample_up.Q()) {
       if (machine_state.sensed_source == Source_DC) {
-        status = pzem017.request_all(pzem017_measurement);
-        if (status != PZEM017::No_Error) {
-          printf("PZEM017 Error: %s\n", pzem017.error_to_string(status));
+        pzem017_status = pzem017.request_all(pzem017_measurement);
+        if (pzem017_status != PZEM017::No_Error) {
+          printf("PZEM017 Error: %s\n", pzem017.error_to_string(pzem017_status));
         } else {
-          // pzem017.calibrate();
-          // sleep_ms(5000);
-          printf("Voltage: %f\n", pzem017_measurement.voltage);
-          printf("Current: %f\n", pzem017_measurement.current);
-          printf("Power: %f\n", pzem017_measurement.power);
-          printf("Energy: %f\n", pzem017_measurement.energy);
+          static bool calibrated = false;
+          if (!calibrated) {
+            pzem017_status = pzem017.calibrate();
+            if (pzem017_status == PZEM017::No_Error) {
+              printf("Calibration successful\n");
+              calibrated = true;
+            } else {
+              printf("Calibration failed\n");
+            }
+          }
+          printf("DC Voltage: %f\n", pzem017_measurement.voltage);
+          printf("DC Current: %f\n", pzem017_measurement.current);
+          printf("DC Power: %f\n", pzem017_measurement.power);
+          printf("DC Energy: %f\n", pzem017_measurement.energy);
 
           shared_big_labels_value.v  = pzem017_measurement.voltage;
           shared_big_labels_value.a  = pzem017_measurement.current;
@@ -159,6 +171,20 @@ void core0_entry() {
           shared_big_labels_value.wh = pzem017_measurement.energy;
         }
       } else if (machine_state.sensed_source == Source_AC) {
+        pzem016_status = pzem016.request_all(pzem016_measurement);
+        if (pzem016_status != PZEM016::No_Error) {
+          printf("PZEM016 Error: %s\n", pzem016.error_to_string(pzem016_status));
+        } else {
+          printf("AC Voltage: %f\n", pzem016_measurement.voltage);
+          printf("AC Current: %f\n", pzem016_measurement.current);
+          printf("AC Power: %f\n", pzem016_measurement.power);
+          printf("AC Energy: %f\n", pzem016_measurement.energy);
+
+          shared_big_labels_value.v  = pzem016_measurement.voltage;
+          shared_big_labels_value.a  = pzem016_measurement.current;
+          shared_big_labels_value.w  = pzem016_measurement.power;
+          shared_big_labels_value.wh = pzem016_measurement.energy;
+        }
       } else {
         shared_big_labels_value.v  = 0;
         shared_big_labels_value.a  = 0;
