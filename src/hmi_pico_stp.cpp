@@ -155,10 +155,10 @@ void core0_entry() {
         printf("ESP32 Error: %s\n", esp32.error_to_string(esp_status));
       }
 
-      // esp_status = esp32.request_temperature(temperature);
-      // if (esp_status == ESP32::No_Error) {
-      //   printf("Temperature: %f\n", temperature);
-      // }
+      esp_status = esp32.request_temperature(temperature);
+      if (esp_status == ESP32::No_Error) {
+        printf("Temperature: %f\n", temperature);
+      }
 
       mutex_enter_blocking(&shared_data_mutex);
       shared_big_labels_value.v  = pzem017_measurement.voltage;

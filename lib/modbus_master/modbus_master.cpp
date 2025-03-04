@@ -1,6 +1,11 @@
 #include "modbus_master.h"
 void ModbusMaster::send_message(uint8_t slave_addr, modbus_function_code_t function, uint16_t reg_addr, uint16_t reg_count, uint pre_tx_delay,
                                 uint post_tx_delay) {
+  while (uart_is_readable(uart_id)) {
+    uint8_t dummy;
+    uart_read_blocking(uart_id, &dummy, 1);
+  }
+
   int frame_size = 8;
   if (reg_count == 0xFFFF) {
     frame_size = 4;
@@ -35,28 +40,31 @@ void ModbusMaster::send_message(uint8_t slave_addr, modbus_function_code_t funct
   // Disable transmit mode
   gpio_put(de_re_pin, 0);
 }
-
 bool ModbusMaster::receive_response(uint8_t *resp, size_t len, uint32_t timeout_ms, size_t max_buffer_size) {
   if (len < 2 || len > max_buffer_size) {
-    return false;  // Invalid length
+    return false;
   }
 
   uint32_t start_time = to_ms_since_boot(get_absolute_time());
-  size_t  index      = 0;
+  size_t   index      = 0;
 
   while ((to_ms_since_boot(get_absolute_time()) - start_time) < timeout_ms) {
     if (uart_is_readable(uart_id)) {
-      if (index >= max_buffer_size) {
-        return false;  // Buffer overflow protection
+      if (index >= max_buffer_size)
+        return false;
+
+      // Replace blocking read with single-byte non-blocking read
+      int c = uart_getc(uart_id);
+      if (c != PICO_ERROR_TIMEOUT) {
+        resp[index] = (uint8_t) c;
+        if (++index >= len)
+          break;
       }
-      uart_read_blocking(uart_id, &resp[index], 1);
-      if (++index >= len)
-        break;
     }
+    sleep_us(100);
   }
 
-  // After the read loop...
-  if (index == len) {  // Ensure exactly 'len' bytes were received
+  if (index == len) {
     uint16_t crc = modbus_crc(resp, len - 2);
     if (resp[len - 2] == (crc & 0xFF) && resp[len - 1] == (crc >> 8)) {
       return true;
