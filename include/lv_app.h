@@ -15,6 +15,7 @@
 #include "string"
 #include "string.h"
 #include "vector"
+#include "esp32.h"
 
 LV_IMG_DECLARE(STP_SPLASH);
 #define DISPLAY_SIZE_Y 320
@@ -92,8 +93,6 @@ typedef enum {
   Timer,
 } Setting_Highlighted_Container;
 
-typedef enum { Source_Off, Source_AC, Source_DC } Source_Highlighted_Container;
-
 typedef enum { MODAL_CONFIRM_EVENT, PROPAGATE_CUTOFF_E, PROPAGATE_CUTOFF_V, PROPAGATE_SETPOINT, PROPAGATE_TIMER, SCAN_WIFI, CONNECT_WIFI } EventType;
 
 struct WidgetParameterData {
@@ -124,7 +123,7 @@ class LVGL_App {
                   const Status_Labels_Value &status_labels_value);
 
   void set_setting_highlight(Setting_Highlighted_Container container, bool highlight);
-  void set_source_highlight(Source_Highlighted_Container container, bool highlight);
+  void set_source_highlight(Sensed_Source container, bool highlight);
   void set_start_stop_highlight(bool started);
 
   Setting_Highlighted_Container get_highlighted_setting() { return setting_highlight; }
@@ -161,7 +160,7 @@ class LVGL_App {
 
   Keyboards                     keyboards;
   Setting_Highlighted_Container setting_highlight;
-  Source_Highlighted_Container  source_highlight;
+  Sensed_Source  source_highlight;
 
   Highlightable_Containers         highlightable_containers;
   Big_Labels                       big_labels;

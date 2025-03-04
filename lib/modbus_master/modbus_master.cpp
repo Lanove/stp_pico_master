@@ -2,8 +2,7 @@
 void ModbusMaster::send_message(uint8_t slave_addr, modbus_function_code_t function, uint16_t reg_addr, uint16_t reg_count, uint pre_tx_delay,
                                 uint post_tx_delay) {
   while (uart_is_readable(uart_id)) {
-    uint8_t dummy;
-    uart_read_blocking(uart_id, &dummy, 1);
+    int c = uart_getc(uart_id);
   }
 
   int frame_size = 8;
@@ -15,6 +14,17 @@ void ModbusMaster::send_message(uint8_t slave_addr, modbus_function_code_t funct
     uint16_t crc = modbus_crc(frame, 2);
     frame[2]     = crc & 0xFF;
     frame[3]     = crc >> 8;
+  } else if (reg_count == 0xF170) {
+    frame_size = 6;
+    frame[0]   = slave_addr;
+    frame[1]   = function;
+    frame[2]   = 0x37;
+    frame[3]   = 0x21;
+    // Calculate CRC
+    uint16_t crc = modbus_crc(frame, 4);
+    frame[4]     = crc & 0xFF;
+    frame[5]     = crc >> 8;
+
   } else {
     frame_size = 8;
     frame[0]   = slave_addr;

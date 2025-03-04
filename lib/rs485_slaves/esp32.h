@@ -6,6 +6,9 @@
 #include "modbus_master.h"
 #include "pico/stdlib.h"
 
+typedef enum { Source_Off, Source_AC, Source_DC } Sensed_Source;
+
+
 class ESP32 {
  public:
   typedef enum {
@@ -42,6 +45,7 @@ class ESP32 {
   Registers &get_reg() { return reg; }
 
   status_t request_temperature(float &output);
+  status_t request_sensed_source(Sensed_Source &output);
 
   status_t set_relay_state(uint16_t state, uint8_t index);
 

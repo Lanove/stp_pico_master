@@ -24,24 +24,24 @@
 #include "xpt2046.h"
 
 struct MachineState {
-  uint16_t                     relay_state[2];
-  bool                         started;
-  Source_Highlighted_Container sensed_source;
-  bool                         polarity_flipped;
+  uint16_t      relay_state[2];
+  bool          started;
+  Sensed_Source sensed_source;
+  bool          polarity_flipped;
 };
 static repeating_timer one_sec_timer;
 
 constexpr int processor_mhz = 250;
 
-uint8_t                      pin_buzzer = 15;
-uint8_t                      pin_start  = 21;
-uint8_t                      pin_stop   = 22;
-uint8_t                      pin_dc     = 20;
-uint8_t                      pin_ac     = 19;
-Differential_Up              stop;
-Differential_Down            start;
-static repeating_timer       io_service_timer;
-Source_Highlighted_Container ac_dc_off;
+uint8_t                pin_buzzer = 15;
+uint8_t                pin_start  = 21;
+uint8_t                pin_stop   = 22;
+uint8_t                pin_dc     = 20;
+uint8_t                pin_ac     = 19;
+Differential_Up        stop;
+Differential_Down      start;
+static repeating_timer io_service_timer;
+Sensed_Source          ac_dc_off;
 
 uint8_t                encoder_A      = 26;
 uint8_t                encoder_B      = 27;
@@ -122,7 +122,7 @@ void core0_entry() {
   gpio_init(pin_stop);
   gpio_init(pin_ac);
   gpio_init(pin_dc);
-  
+
   gpio_set_dir(pin_buzzer, GPIO_OUT);
   gpio_set_dir(pin_start, GPIO_IN);
   gpio_set_dir(pin_stop, GPIO_IN);
@@ -141,31 +141,49 @@ void core0_entry() {
     sample_up.CLK(sample_pulse.Q());
 
     if (sample_up.Q()) {
-      // status = pzem017.request_all(pzem017_measurement);
-      // if (status != PZEM017::No_Error) {
-      //   printf("PZEM017 Error: %s\n", pzem017.error_to_string(status));
-      // }
+      if (machine_state.sensed_source == Source_DC) {
+        status = pzem017.request_all(pzem017_measurement);
+        if (status != PZEM017::No_Error) {
+          printf("PZEM017 Error: %s\n", pzem017.error_to_string(status));
+        } else {
+          // pzem017.calibrate();
+          // sleep_ms(5000);
+          printf("Voltage: %f\n", pzem017_measurement.voltage);
+          printf("Current: %f\n", pzem017_measurement.current);
+          printf("Power: %f\n", pzem017_measurement.power);
+          printf("Energy: %f\n", pzem017_measurement.energy);
+
+          shared_big_labels_value.v  = pzem017_measurement.voltage;
+          shared_big_labels_value.a  = pzem017_measurement.current;
+          shared_big_labels_value.w  = pzem017_measurement.power;
+          shared_big_labels_value.wh = pzem017_measurement.energy;
+        }
+      } else if (machine_state.sensed_source == Source_AC) {
+      } else {
+        shared_big_labels_value.v  = 0;
+        shared_big_labels_value.a  = 0;
+        shared_big_labels_value.w  = 0;
+        shared_big_labels_value.wh = 0;
+      }
 
       esp_status = esp32.set_relay_state(test_relay_state[0], 0);
       if (esp_status != ESP32::No_Error) {
         printf("ESP32 Error: %s\n", esp32.error_to_string(esp_status));
-      }
-      esp_status = esp32.set_relay_state(test_relay_state[1], 1);
-      if (esp_status != ESP32::No_Error) {
-        printf("ESP32 Error: %s\n", esp32.error_to_string(esp_status));
+      } else {
+        esp_status = esp32.set_relay_state(test_relay_state[1], 1);
+        esp_status = esp32.request_temperature(temperature);
+        if (esp_status == ESP32::No_Error) {
+          printf("Temperature: %f\n", temperature);
+        }
+        esp_status = esp32.request_sensed_source((Sensed_Source &) machine_state.sensed_source);
+        if (esp_status == ESP32::No_Error) {
+          printf("Sensed Source: %d\n", machine_state.sensed_source);
+        }
       }
 
-      esp_status = esp32.request_temperature(temperature);
-      if (esp_status == ESP32::No_Error) {
-        printf("Temperature: %f\n", temperature);
-      }
-
-      mutex_enter_blocking(&shared_data_mutex);
-      shared_big_labels_value.v  = pzem017_measurement.voltage;
-      shared_big_labels_value.a  = pzem017_measurement.current;
-      shared_big_labels_value.w  = pzem017_measurement.power;
-      shared_big_labels_value.wh = pzem017_measurement.energy;
-      mutex_exit(&shared_data_mutex);
+      // mutex_enter_blocking(&shared_data_mutex);
+      shared_status_labels_value.temp = temperature;
+      // mutex_exit(&shared_data_mutex);
     }
   }
   return;
@@ -192,11 +210,11 @@ void core1_entry() {
   add_repeating_timer_ms(1000, one_sec_service, NULL, &one_sec_timer);
 
   while (true) {
-    mutex_enter_blocking(&shared_data_mutex);
+    // mutex_enter_blocking(&shared_data_mutex);
     big_labels_value     = shared_big_labels_value;
     setting_labels_value = shared_setting_labels_value;
     status_labels_value  = shared_status_labels_value;
-    mutex_exit(&shared_data_mutex);
+    // mutex_exit(&shared_data_mutex);
 
     app.app_update(big_labels_value, setting_labels_value, status_labels_value);
 
@@ -209,7 +227,7 @@ void core1_entry() {
 
 bool one_sec_service(struct repeating_timer *t) {
   static float last_voltage = shared_big_labels_value.v;  // store the previous voltage value
-  mutex_enter_blocking(&shared_data_mutex);
+  // mutex_enter_blocking(&shared_data_mutex);
   if (shared_status_labels_value.started) {
     shared_status_labels_value.time_running++;
     if (shared_status_labels_value.time_running >= shared_setting_labels_value.timer && shared_setting_labels_value.timer != 0) {
@@ -230,7 +248,7 @@ bool one_sec_service(struct repeating_timer *t) {
     // Update the previous voltage value
     last_voltage = shared_big_labels_value.v;
   }
-  mutex_exit(&shared_data_mutex);
+  // mutex_exit(&shared_data_mutex);
   return true;
 }
 
@@ -244,28 +262,28 @@ void        start_cb() {
 uint8_t shift_counter = 0;
 
 bool input_service(struct repeating_timer *t) {
-  static Source_Highlighted_Container last_ac_dc_off = Source_Off;
-  mutex_enter_blocking(&shared_data_mutex);
+  static Sensed_Source last_ac_dc_off = Source_Off;
+  // mutex_enter_blocking(&shared_data_mutex);
   start.CLK(gpio_get(pin_start));
   stop.CLK(gpio_get(pin_stop));
-  ac_dc_off = (Source_Highlighted_Container) ((gpio_get(pin_ac) << 1) | gpio_get(pin_dc));
+  ac_dc_off = (Sensed_Source) ((gpio_get(pin_ac) << 1) | gpio_get(pin_dc));
   if (start.Q()) {
     if (shift_counter < 12)
       test_relay_state[0] |= (1 << shift_counter);
     else
       test_relay_state[1] |= (1 << (shift_counter - 12));
-    
-    for(int i = 0; i <12; i++){
+
+    for (int i = 0; i < 12; i++) {
       printf("%d", (test_relay_state[0] >> i) & 1);
     }
     printf(" ");
-    for(int i = 0; i <8; i++){
+    for (int i = 0; i < 8; i++) {
       printf("%d", (test_relay_state[1] >> i) & 1);
     }
     printf("\n");
     shift_counter++;
-    if(shift_counter > 20){
-      shift_counter = 0;
+    if (shift_counter > 20) {
+      shift_counter       = 0;
       test_relay_state[0] = 0;
       test_relay_state[1] = 0;
     }
@@ -294,7 +312,7 @@ bool input_service(struct repeating_timer *t) {
     app.set_source_highlight(ac_dc_off, true);
   }
   last_ac_dc_off = ac_dc_off;
-  mutex_exit(&shared_data_mutex);
+  // mutex_exit(&shared_data_mutex);
   return true;
 }
 
@@ -304,7 +322,7 @@ bool encoder_service(struct repeating_timer *t) {
   static int undivided_encoder_value = 0;
   static int encoder_delta           = 0;
 
-  mutex_enter_blocking(&shared_data_mutex);
+  // mutex_enter_blocking(&shared_data_mutex);
   undivided_encoder_value += encoder.get_value();
   encoder_value                                     = undivided_encoder_value / 4;
   ClickEncoder::Button b                            = encoder.get_button();
@@ -340,7 +358,7 @@ bool encoder_service(struct repeating_timer *t) {
     app.set_setting_highlight(highlighted_setting, true);
   }
   last_encoder_value = encoder_value;
-  mutex_exit(&shared_data_mutex);
+  // mutex_exit(&shared_data_mutex);
   encoder.service();
   return true;
 }
@@ -364,7 +382,7 @@ void wifi_cb_dummy(EventData *ed) {
 void changes_cb(EventData *ed) {
   const char *txt = lv_textarea_get_text(ed->textarea);
   double      data;
-  mutex_enter_blocking(&shared_data_mutex);
+  // mutex_enter_blocking(&shared_data_mutex);
   switch (ed->event_type) {
   case PROPAGATE_CUTOFF_E:
     data = atof(txt);
@@ -391,5 +409,5 @@ void changes_cb(EventData *ed) {
     shared_setting_labels_value.timer = hour * 3600 + minute * 60 + second;
     break;
   }
-  mutex_exit(&shared_data_mutex);
+  // mutex_exit(&shared_data_mutex);
 }

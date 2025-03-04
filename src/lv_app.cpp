@@ -744,7 +744,7 @@ void LVGL_App::app_update(const Big_Labels_Value &big_labels_value, const Settin
   }
 
   if (status_labels_value.temp != prev_status_labels_value.temp) {
-    snprintf(temp_str, sizeof(temp_str), "%d°C", status_labels_value.temp);
+    snprintf(temp_str, sizeof(temp_str), "%0.0f°C", status_labels_value.temp);
     lv_label_set_text(top_grid_labels.temp_label, temp_str);
   }
 
@@ -878,7 +878,7 @@ void LVGL_App::set_start_stop_highlight(bool started) {
   }
 }
 
-void LVGL_App::set_source_highlight(Source_Highlighted_Container container, bool highlight) {
+void LVGL_App::set_source_highlight(Sensed_Source container, bool highlight) {
   clear_source_highlight();
   source_highlight = container;
   switch (container) {

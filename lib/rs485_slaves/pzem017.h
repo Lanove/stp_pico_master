@@ -92,6 +92,8 @@ public:
 
   status_t reset_energy();
 
+  status_t calibrate();
+
   const char *error_to_string(status_t error);
 
 private:
@@ -100,7 +102,7 @@ private:
   uint8_t *response_buf;
 
   status_t validate_response(uint response_len,
-                             modbus_function_code_t function);
+                             modbus_function_code_t function, uint8_t addr);
 };
 
 #endif

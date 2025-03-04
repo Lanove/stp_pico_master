@@ -51,6 +51,18 @@ ESP32::status_t ESP32::request_temperature(float &output) {
   return status;
 }
 
+ESP32::status_t ESP32::request_sensed_source(Sensed_Source &output) {
+  mbm->send_message(address, READ_HOLDING_REGISTERS, Supply_Status, 1, 5, 3);
+  if (!mbm->receive_response(response_buf, 7, 1000))
+    return Timeout;
+  ESP32::status_t status = validate_response(7, READ_HOLDING_REGISTERS);
+  if (status == No_Error) {
+    uint16_t raw = (response_buf[3] << 8) | (response_buf[4]);
+    output       = (Sensed_Source) raw;
+  }
+  return status;
+}
+
 ESP32::status_t ESP32::validate_response(uint response_len, modbus_function_code_t function) {
   uint16_t crc = response_buf[response_len - 2] | (response_buf[response_len - 1] << 8);
   if (!mbm->validate_crc(response_buf, response_len - 2, crc))
