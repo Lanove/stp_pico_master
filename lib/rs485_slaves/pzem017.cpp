@@ -102,12 +102,12 @@ PZEM017::status_t PZEM017::reset_energy() {
 }
 
 PZEM017::status_t PZEM017::calibrate() {
-  mbm->send_message(0xF8, (modbus_function_code_t) (Calibration), 0, 0xF170, 5, 5);
+  mbm->send_message(address, (modbus_function_code_t) (Calibration), 0, 0xF170, 5, 5);
   if (!mbm->receive_response(response_buf, 6, 10000)) {
     printf("Calibration Timeout\n");
     return Timeout;
   }
-  PZEM017::status_t status = validate_response(6, (modbus_function_code_t) Calibration, 0xF8);
+  PZEM017::status_t status = validate_response(6, (modbus_function_code_t) Calibration, address);
   return status;
 }
 

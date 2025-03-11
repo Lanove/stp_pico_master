@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <functional>
 
+#include "esp32.h"
 #include "lv_colors.h"
 #include "lvgl.h"
 #include "src/misc/lv_color.h"
@@ -15,7 +16,28 @@
 #include "string"
 #include "string.h"
 #include "vector"
-#include "esp32.h"
+
+const float resistance_map[] = {9e6,
+                                9e6,
+                                9e6,
+                                95.9,
+                                42.36792782305006,
+                                25.664885860849193,
+                                19.448804364612887,
+                                15.494170600754483,
+                                13.001087986224924,
+                                11.247702289481387,
+                                9.918076836121482,
+                                8.775828289229295,
+                                7.94927097735896,
+                                7.157893569675438,
+                                6.6067253107217425,
+                                6.149222768954636,
+                                5.5767263931153215,
+                                5.183439029282609,
+                                4.828901936291771,
+                                4.523804082998528,
+                                4.310903609732991};
 
 LV_IMG_DECLARE(STP_SPLASH);
 #define DISPLAY_SIZE_Y 320
@@ -160,7 +182,7 @@ class LVGL_App {
 
   Keyboards                     keyboards;
   Setting_Highlighted_Container setting_highlight;
-  Sensed_Source  source_highlight;
+  Sensed_Source                 source_highlight;
 
   Highlightable_Containers         highlightable_containers;
   Big_Labels                       big_labels;

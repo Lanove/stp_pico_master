@@ -47,6 +47,11 @@ class ModbusMaster {
     uart_set_fifo_enabled(uart_id, false);
   }
 
+  void change_stop_bits(uint stop_bits) {
+    this->stop_bits = stop_bits;
+    uart_set_format(uart_id, data_bits, stop_bits, parity);
+  }
+
   void
   send_message(uint8_t slave_addr, modbus_function_code_t function, uint16_t reg_addr, uint16_t reg_count, uint pre_tx_delay, uint post_tx_delay);
 

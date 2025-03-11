@@ -30,9 +30,12 @@ struct MachineState {
   Sensed_Source sensed_source;
   bool          polarity_flipped;
 };
+
 static repeating_timer one_sec_timer;
 
 constexpr int processor_mhz = 250;
+
+bool reset_pzem;
 
 uint8_t                pin_buzzer = 15;
 uint8_t                pin_start  = 21;
@@ -60,7 +63,7 @@ uint32_t      modbus_stop_bits = 2;
 uart_parity_t modbus_parity    = UART_PARITY_NONE;
 ModbusMaster  mbm = ModbusMaster(modbus_de_re, modbus_rx, modbus_tx, modbus_uart, modbus_baudrate, modbus_data_bits, modbus_stop_bits, modbus_parity);
 
-PZEM016                pzem016 = PZEM016(mbm, 0x01);
+PZEM016                pzem016 = PZEM016(mbm, 0x02);
 PZEM017                pzem017 = PZEM017(mbm, 0x02);
 ESP32                  esp32   = ESP32(mbm, 0x03);
 PZEM017::measurement_t pzem017_measurement;
@@ -106,6 +109,7 @@ int main() {
     printf("set system clock to %dMHz failed\n", processor_mhz);
   else
     printf("system clock is now %dMHz\n", processor_mhz);
+
   clock_configure(clk_peri, 0, CLOCKS_CLK_PERI_CTRL_AUXSRC_VALUE_CLK_SYS, processor_mhz * 1000 * 1000, processor_mhz * 1000 * 1000);
 
   mutex_init(&shared_data_mutex);
@@ -114,8 +118,6 @@ int main() {
 
   core0_entry();
 }
-
-uint16_t test_relay_state[2] = {0, 0};
 
 void core0_entry() {
   mbm.init();
@@ -136,41 +138,81 @@ void core0_entry() {
   ESP32::status_t   esp_status;
   float             temperature;
 
-  PulseContact    sample_pulse(1.0);
+  PulseContact    sample_pulse(0.25);
   Differential_Up sample_up;
 
   while (true) {
+    int setpoint_idx = static_cast<int>(shared_setting_labels_value.setpoint / 5);
     sample_pulse.service();
-
     sample_up.CLK(sample_pulse.Q());
+    if (machine_state.started) {
+      machine_state.relay_state[0] = (setpoint_idx < 12) ? ((1 << setpoint_idx) - 1) : 0xFFF;
+      machine_state.relay_state[1] = (setpoint_idx < 12) ? 0 : ((1 << (setpoint_idx - 12)) - 1);
+      printf("setpoint_idx: %d\n", setpoint_idx);
+      printf("relay_state[0]: %d\n", machine_state.relay_state[0]);
+      printf("relay_state[1]: %d\n", machine_state.relay_state[1]);
+    } else {
+      machine_state.relay_state[0] = 0;
+      machine_state.relay_state[1] = 0;
+    }
 
     if (sample_up.Q()) {
       if (machine_state.sensed_source == Source_DC) {
+        mbm.change_stop_bits(2);
+        if (reset_pzem) {
+          pzem017_status = pzem017.reset_energy();
+          reset_pzem     = false;
+          if (pzem017_status != PZEM017::No_Error)
+            printf("Reset Energy PZEM017 Error: %s\n", pzem017.error_to_string(pzem017_status));
+          shared_big_labels_value.wh = 0;
+        }
+
         pzem017_status = pzem017.request_all(pzem017_measurement);
         if (pzem017_status != PZEM017::No_Error) {
           printf("PZEM017 Error: %s\n", pzem017.error_to_string(pzem017_status));
         } else {
-          static bool calibrated = false;
-          if (!calibrated) {
-            pzem017_status = pzem017.calibrate();
-            if (pzem017_status == PZEM017::No_Error) {
-              printf("Calibration successful\n");
-              calibrated = true;
-            } else {
-              printf("Calibration failed\n");
-            }
-          }
-          printf("DC Voltage: %f\n", pzem017_measurement.voltage);
-          printf("DC Current: %f\n", pzem017_measurement.current);
-          printf("DC Power: %f\n", pzem017_measurement.power);
-          printf("DC Energy: %f\n", pzem017_measurement.energy);
+          shared_big_labels_value.v = pzem017_measurement.voltage;
 
-          shared_big_labels_value.v  = pzem017_measurement.voltage;
-          shared_big_labels_value.a  = pzem017_measurement.current;
-          shared_big_labels_value.w  = pzem017_measurement.power;
-          shared_big_labels_value.wh = pzem017_measurement.energy;
+          if (machine_state.started) {
+            double                 current_resistance = resistance_map[setpoint_idx];
+            static absolute_time_t last_time          = get_absolute_time();
+            absolute_time_t        current_time       = get_absolute_time();
+
+            shared_big_labels_value.a = pzem017_measurement.voltage / current_resistance;
+            shared_big_labels_value.w = shared_big_labels_value.v * shared_big_labels_value.a;
+
+            // Calculate delta time in hours
+            double delta_time_us    = absolute_time_diff_us(last_time, current_time);
+            double delta_time_hours = delta_time_us / (3600.0 * 1000000.0);
+
+            // Integrate watt-hours
+            shared_big_labels_value.wh += shared_big_labels_value.w * delta_time_hours;
+
+            last_time = current_time;
+          }else{
+            shared_big_labels_value.a = 0;
+            shared_big_labels_value.w = 0;
+          }
+
+          printf("DC Voltage: %f\n", shared_big_labels_value.v);
+          printf("DC Current: %f\n", shared_big_labels_value.a);
+          printf("DC Power: %f\n", shared_big_labels_value.w);
+          printf("DC Energy: %f\n", shared_big_labels_value.wh);
+
+          // shared_big_labels_value.a  = pzem017_measurement.current;
+          // shared_big_labels_value.w  = pzem017_measurement.power;
+          // shared_big_labels_value.wh = pzem017_measurement.energy;
         }
       } else if (machine_state.sensed_source == Source_AC) {
+        mbm.change_stop_bits(1);
+
+        if (reset_pzem) {
+          pzem016_status = pzem016.reset_energy();
+          reset_pzem     = false;
+          if (pzem016_status != PZEM016::No_Error)
+            printf("Reset Energy PZEM016 Error: %s\n", pzem016.error_to_string(pzem016_status));
+          shared_big_labels_value.wh = 0;
+        }
         pzem016_status = pzem016.request_all(pzem016_measurement);
         if (pzem016_status != PZEM016::No_Error) {
           printf("PZEM016 Error: %s\n", pzem016.error_to_string(pzem016_status));
@@ -192,20 +234,19 @@ void core0_entry() {
         shared_big_labels_value.wh = 0;
       }
 
-      esp_status = esp32.set_relay_state(test_relay_state[0], 0);
-      if (esp_status != ESP32::No_Error) {
+      mbm.change_stop_bits(2);
+      esp_status = esp32.set_relay_state(machine_state.relay_state[0], 0);
+      if (esp_status != ESP32::No_Error)
         printf("ESP32 Error: %s\n", esp32.error_to_string(esp_status));
-      } else {
-        esp_status = esp32.set_relay_state(test_relay_state[1], 1);
-        esp_status = esp32.request_temperature(temperature);
-        if (esp_status == ESP32::No_Error) {
-          printf("Temperature: %f\n", temperature);
-        }
-        esp_status = esp32.request_sensed_source((Sensed_Source &) machine_state.sensed_source);
-        if (esp_status == ESP32::No_Error) {
-          printf("Sensed Source: %d\n", machine_state.sensed_source);
-        }
-      }
+      esp_status = esp32.set_relay_state(machine_state.relay_state[1], 1);
+      if (esp_status != ESP32::No_Error)
+        printf("ESP32 Error: %s\n", esp32.error_to_string(esp_status));
+      esp_status = esp32.request_temperature(temperature);
+      if (esp_status != ESP32::No_Error)
+        printf("ESP32 Error: %s\n", esp32.error_to_string(esp_status));
+      esp_status = esp32.request_sensed_source((Sensed_Source &) machine_state.sensed_source);
+      if (esp_status != ESP32::No_Error)
+        printf("ESP32 Error: %s\n", esp32.error_to_string(esp_status));
 
       // mutex_enter_blocking(&shared_data_mutex);
       shared_status_labels_value.temp = temperature;
@@ -258,16 +299,19 @@ bool one_sec_service(struct repeating_timer *t) {
     shared_status_labels_value.time_running++;
     if (shared_status_labels_value.time_running >= shared_setting_labels_value.timer && shared_setting_labels_value.timer != 0) {
       shared_status_labels_value.started = false;
+      machine_state.started              = false;
       app.modal_create_alert("Timer telah berakhir, menghentikan load bank");
     }
     if (shared_setting_labels_value.cutoff_e != 0 && shared_big_labels_value.wh >= shared_setting_labels_value.cutoff_e) {
       shared_status_labels_value.started = false;
+      machine_state.started              = false;
       app.modal_create_alert("Energi telah mencapai batas, menghentikan load bank");
     }
     if (shared_setting_labels_value.cutoff_v != 0) {
       // Check for falling edge: previous voltage > cutoff && current voltage <= cutoff
       if (last_voltage > shared_setting_labels_value.cutoff_v && shared_big_labels_value.v <= shared_setting_labels_value.cutoff_v) {
         shared_status_labels_value.started = false;
+        machine_state.started              = false;
         app.modal_create_alert("Tegangan telah mencapai batas bawah, menghentikan load bank");
       }
     }
@@ -283,9 +327,8 @@ void        start_cb() {
   machine_state.started                   = true;
   shared_status_labels_value.started      = true;
   shared_status_labels_value.time_running = 0;
+  reset_pzem                              = true;
 }
-
-uint8_t shift_counter = 0;
 
 bool input_service(struct repeating_timer *t) {
   static Sensed_Source last_ac_dc_off = Source_Off;
@@ -293,42 +336,25 @@ bool input_service(struct repeating_timer *t) {
   start.CLK(gpio_get(pin_start));
   stop.CLK(gpio_get(pin_stop));
   ac_dc_off = (Sensed_Source) ((gpio_get(pin_ac) << 1) | gpio_get(pin_dc));
-  if (start.Q()) {
-    if (shift_counter < 12)
-      test_relay_state[0] |= (1 << shift_counter);
-    else
-      test_relay_state[1] |= (1 << (shift_counter - 12));
 
-    for (int i = 0; i < 12; i++) {
-      printf("%d", (test_relay_state[0] >> i) & 1);
-    }
-    printf(" ");
-    for (int i = 0; i < 8; i++) {
-      printf("%d", (test_relay_state[1] >> i) & 1);
-    }
-    printf("\n");
-    shift_counter++;
-    if (shift_counter > 20) {
-      shift_counter       = 0;
-      test_relay_state[0] = 0;
-      test_relay_state[1] = 0;
+  if (start.Q() && !modal_active) {
+    if (machine_state.polarity_flipped) {
+      app.modal_create_confirm(nullptr, start_cb, "Apakah anda yakin ingin memulai load bank?", "Polaritas Terbalik", bs_warning);
+    } else if (ac_dc_off == Source_Off) {
+      // app.modal_create_alert("Sumber daya belum dipilih, silahkan pilih sumber daya terlebih dahulu", "Peringatan!");
+      app.modal_create_confirm(nullptr, start_cb, "Sumber daya belum dipilih\nApakah anda yakin ingin memulai load bank?",
+                               "Sumber daya belum dipilih", bs_warning);
+    } else if (ac_dc_off != machine_state.sensed_source) {
+      // app.modal_create_alert("Sumber daya yang dipilih tidak sesuai dengan sumber daya yang terdeteksi");
+      app.modal_create_confirm(nullptr, start_cb,
+                               "Sumber daya yang dipilih tidak sesuai dengan sumber daya yang terdeteksi\nApakah anda yakin ingin memulai load bank?",
+                               "Sumber daya tidak sesuai", bs_warning);
+    } else if (shared_big_labels_value.v == 0) {
+      app.modal_create_alert("Tegangan belum terdeteksi, silahkan cek koneksi tegangan");
+    } else {
+      start_cb();
     }
   }
-  // if (start.Q() && !modal_active) {
-  //   if (machine_state.polarity_flipped) {
-  //     app.modal_create_confirm(nullptr, start_cb, "Apakah anda yakin ingin memulai load bank?", "Polaritas Terbalik", bs_warning);
-  //   } else if (ac_dc_off == Source_Off) {
-  //     // app.modal_create_alert("Sumber daya belum dipilih, silahkan pilih sumber daya terlebih dahulu", "Peringatan!");
-  //     app.modal_create_confirm(nullptr, start_cb, "Sumber daya belum dipilih\nApakah anda yakin ingin memulai load bank?", "Sumber daya belum dipilih", bs_warning);
-  //   } else if (ac_dc_off != machine_state.sensed_source) {
-  //     // app.modal_create_alert("Sumber daya yang dipilih tidak sesuai dengan sumber daya yang terdeteksi");
-  //     app.modal_create_confirm(nullptr, start_cb, "Sumber daya yang dipilih tidak sesuai dengan sumber daya yang terdeteksi\nApakah anda yakin ingin memulai load bank?", "Sumber daya tidak sesuai", bs_warning);
-  //   } else if (shared_big_labels_value.v == 0) {
-  //     app.modal_create_alert("Tegangan belum terdeteksi, silahkan cek koneksi tegangan");
-  //   } else {
-  //     start_cb();
-  //   }
-  // }
 
   if (stop.Q()) {
     machine_state.started              = false;
@@ -422,8 +448,8 @@ void changes_cb(EventData *ed) {
     break;
   case PROPAGATE_SETPOINT:
     data = atof(txt);
-    apply_min_max<double>(data, 0.0, 100.0);
-    data                                 = round(data / 5.0) * 5.0;
+    apply_min_max<double>(data, 0.0, 101.0);
+    data                                 = round((data + 1.0) / 5.0) * 5.0;
     shared_setting_labels_value.setpoint = data;
     break;
   case PROPAGATE_TIMER:

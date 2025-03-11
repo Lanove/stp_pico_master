@@ -38,6 +38,7 @@ void ModbusMaster::send_message(uint8_t slave_addr, modbus_function_code_t funct
     uint16_t crc = modbus_crc(frame, 6);
     frame[6]     = crc & 0xFF;
     frame[7]     = crc >> 8;
+
   }
 
   // Enable transmit mode
