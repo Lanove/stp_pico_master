@@ -95,7 +95,16 @@ typedef enum {
   Timer,
 } Setting_Highlighted_Container;
 
-typedef enum { MODAL_CONFIRM_EVENT, PROPAGATE_CUTOFF_E, PROPAGATE_CUTOFF_V, PROPAGATE_SETPOINT, PROPAGATE_TIMER, SCAN_WIFI, CONNECT_WIFI } EventType;
+typedef enum {
+  MODAL_CONFIRM_EVENT,
+  PROPAGATE_CUTOFF_E,
+  PROPAGATE_CUTOFF_V,
+  PROPAGATE_SETPOINT,
+  PROPAGATE_TIMER,
+  SCAN_WIFI,
+  CONNECT_WIFI,
+  PROPAGATE_OVERLAY
+} EventType;
 
 struct WidgetParameterData {
   lv_obj_t *issuer = NULL;
@@ -151,6 +160,10 @@ class LVGL_App {
                                  lv_color_t headerTextColor = bs_white, lv_color_t textColor = bs_white, const char *confirmButtonText = "Ok",
                                  const char *cancelButtonText = "Batal", lv_coord_t xSize = lv_pct(70), lv_coord_t ySize = lv_pct(70));
 
+  void set_wifi_status(bool connected);
+
+  Bottom_Grid_Buttons &get_bottom_grid_buttons() { return bottom_grid_buttons; }
+
  private:
   const char              *bottom_home_btns[5] = {"Setpoint", "Cut-off V", "Cut-off E", "Timer", "Wi-Fi"};
   lv_obj_t                *scr_home;
@@ -159,6 +172,7 @@ class LVGL_App {
   lv_obj_t                *wifi_list_obj;
   std::vector<std::string> wifi_list;
   std::string              connected_wifi;
+  bool                     is_wifi_connected = false;
 
   Keyboards                     keyboards;
   Setting_Highlighted_Container setting_highlight;

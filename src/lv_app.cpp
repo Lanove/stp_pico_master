@@ -222,6 +222,29 @@ lv_obj_t *LVGL_App::create_row_container(lv_obj_t *parent, int flex_grow, std::f
   return row_container;
 }
 
+void LVGL_App::set_wifi_status(bool connected) {
+  is_wifi_connected = connected;
+  if (!top_grid_labels.wifi_label) {
+    return;  // WiFi label not initialized yet
+  }
+
+  lv_obj_t *wifi_label_cross = lv_obj_get_child(top_grid_labels.wifi_label, 0);
+
+  if (connected) {
+    // Connected state - show WiFi icon in green, hide cross
+    lv_obj_set_style_text_color(top_grid_labels.wifi_label, lv_palette_main(LV_PALETTE_GREEN), 0);
+    if (wifi_label_cross) {
+      lv_obj_add_flag(wifi_label_cross, LV_OBJ_FLAG_HIDDEN);
+    }
+  } else {
+    // Disconnected state - show WiFi icon in grey with red cross
+    lv_obj_set_style_text_color(top_grid_labels.wifi_label, lv_palette_darken(LV_PALETTE_GREY, 1), 0);
+    if (wifi_label_cross) {
+      lv_obj_remove_flag(wifi_label_cross, LV_OBJ_FLAG_HIDDEN);
+    }
+  }
+}
+
 void LVGL_App::home_screen(uint32_t delay) {
   static int top_grid_height    = 30;
   static int bottom_grid_height = 50;
@@ -255,7 +278,7 @@ void LVGL_App::home_screen(uint32_t delay) {
 
   // Temperature label
   lv_obj_t *temp_label = lv_label_create(top_grid);
-  lv_label_set_text(temp_label, "125°C");
+  lv_label_set_text(temp_label, " ");
   lv_obj_set_style_text_font(temp_label, &lv_font_montserrat_20, 0);
   lv_obj_set_align(temp_label, LV_ALIGN_LEFT_MID);
   lv_obj_set_pos(temp_label, 0, 0);
@@ -658,8 +681,6 @@ void LVGL_App::home_screen(uint32_t delay) {
       bottom_grid_buttons.timer = btn;
     } else if (i == 4) {
       bottom_grid_buttons.settings = btn;
-      lv_obj_remove_flag(btn, LV_OBJ_FLAG_CLICKABLE);
-      lv_obj_add_state(btn, LV_STATE_DISABLED);
     }
 
     // Add button event handler
@@ -1001,6 +1022,12 @@ lv_obj_t *LVGL_App::modal_create_setting(const lv_font_t *headerFont, const lv_f
     lv_obj_set_style_radius(obj, radius, 0);
   };
   lv_obj_t *overlay = lvc_create_overlay(lv_screen_active());
+  if (wifi_cb) {
+    static EventData ed;
+    ed.event_type  = PROPAGATE_OVERLAY;
+    ed.data.issuer = overlay;
+    wifi_cb(&ed);
+  }
 
   lv_obj_t *modal = lv_obj_create(overlay);
   lv_obj_center(modal);
@@ -1011,6 +1038,8 @@ lv_obj_t *LVGL_App::modal_create_setting(const lv_font_t *headerFont, const lv_f
   lv_obj_align(modalHeader, LV_ALIGN_TOP_MID, 0, 0);
   lv_obj_set_size(modalHeader, lv_pct(100), lv_pct(20));
   lv_obj_set_style_radius(modalHeader, 0, 0);
+  lv_obj_set_scrollbar_mode(modalHeader, LV_SCROLLBAR_MODE_OFF);
+  lv_obj_clear_flag(modalHeader, LV_OBJ_FLAG_SCROLLABLE);
 
   lv_obj_set_style_bg_color(modalHeader, lv_palette_darken(LV_PALETTE_BLUE, 4), 0);
 
@@ -1061,8 +1090,8 @@ lv_obj_t *LVGL_App::modal_create_setting(const lv_font_t *headerFont, const lv_f
       lv_obj_set_style_text_font(lv_obj_get_child(btn, 0), &lv_font_montserrat_16, 0);
       lv_obj_set_style_text_font(lv_obj_get_child(btn, 1), &lv_font_montserrat_16, 0);
       connect_btn = lv_button_create(btn);
-      lvc_btn_init(connect_btn, wifi_list[i] != connected_wifi ? "Hubungkan" : "Terhubung", LV_ALIGN_RIGHT_MID, 0, 0);
-      if (wifi_list[i] == connected_wifi) {
+      lvc_btn_init(connect_btn, wifi_list[i] == connected_wifi && is_wifi_connected ? "Terhubung" : "Hubungkan", LV_ALIGN_RIGHT_MID, 0, 0);
+      if (wifi_list[i] == connected_wifi && is_wifi_connected) {
         lv_obj_add_state(btn, LV_STATE_DISABLED);
         lv_obj_add_state(connect_btn, LV_STATE_DISABLED);
       } else {
@@ -1111,11 +1140,11 @@ lv_obj_t *LVGL_App::modal_create_alert(const char *message, const char *headerTe
 
   lv_obj_t *warningLabel = lv_label_create(modalHeader);
   lvc_label_init(warningLabel, &lv_font_montserrat_20, LV_ALIGN_TOP_LEFT, 0, 0, headerTextColor, LV_TEXT_ALIGN_LEFT, LV_LABEL_LONG_WRAP, lv_pct(100));
-  lv_label_set_text_static(warningLabel, headerText);
+  lv_label_set_text(warningLabel, headerText);
 
   lv_obj_t *error = lv_label_create(modal);
   lvc_label_init(error, &lv_font_montserrat_14, LV_ALIGN_CENTER, 0, 0, textColor, LV_TEXT_ALIGN_CENTER, LV_LABEL_LONG_WRAP, lv_pct(100));
-  lv_label_set_text_static(error, message);
+  lv_label_set_text(error, message);
 
   lv_obj_t *okButton = lv_button_create(modal);
   lvc_btn_init(okButton, buttonText, LV_ALIGN_BOTTOM_RIGHT, -15, -15);

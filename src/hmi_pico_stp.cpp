@@ -1,6 +1,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include <algorithm>
+#include <string>
 #include <vector>
 
 #include "click_encoder.h"
@@ -78,6 +80,10 @@ mutex_t              shared_data_mutex;
 std::vector<std::string> wifi_list;
 std::string              connected_wifi;
 
+// WiFi scanning state
+static bool            wifi_scan_in_progress = false;
+static absolute_time_t wifi_scan_timeout;
+
 LVGL_App             app;
 Big_Labels_Value     big_labels_value;
 Setting_Labels_Value setting_labels_value;
@@ -85,13 +91,19 @@ Status_Labels_Value  status_labels_value;
 
 MachineState machine_state;
 
-void wifi_cb_dummy(EventData *ed);
-void core1_entry();
-void core0_entry();
-void changes_cb(EventData *data);
-bool encoder_service(struct repeating_timer *t);
-bool input_service(struct repeating_timer *t);
-bool one_sec_service(struct repeating_timer *t);
+void        wifi_cb_dummy(EventData *ed);
+void        core1_entry();
+void        core0_entry();
+void        changes_cb(EventData *data);
+bool        encoder_service(struct repeating_timer *t);
+bool        input_service(struct repeating_timer *t);
+bool        one_sec_service(struct repeating_timer *t);
+const char *wifi_error_to_string_id(int error_code);
+
+// WiFi helper functions
+bool is_wifi_connected();
+void start_wifi_scan();
+void check_wifi_scan_completion();
 
 template <typename T>
 void apply_min_max(T &value, T min, T max) {
@@ -105,6 +117,16 @@ static int scan_result(void *env, const cyw43_ev_scan_result_t *result) {
   if (result) {
     printf("ssid: %-32s rssi: %4d chan: %3d mac: %02x:%02x:%02x:%02x:%02x:%02x sec: %u\n", result->ssid, result->rssi, result->channel,
            result->bssid[0], result->bssid[1], result->bssid[2], result->bssid[3], result->bssid[4], result->bssid[5], result->auth_mode);
+
+    // Add the SSID to wifi_list if it's not empty and not already in the list
+    if (strlen((char *) result->ssid) > 0) {
+      std::string ssid_str((char *) result->ssid);
+      // Check if this SSID is already in the list
+      auto it = std::find(wifi_list.begin(), wifi_list.end(), ssid_str);
+      if (it == wifi_list.end()) {
+        wifi_list.push_back(ssid_str);
+      }
+    }
   }
   return 0;
 }
@@ -195,10 +217,10 @@ void core0_entry() {
         shared_big_labels_value.w  = pzem017_measurement.power;
         shared_big_labels_value.wh = pzem017_measurement.energy;
 
-        printf("DC Voltage: %f\n", shared_big_labels_value.v);
-        printf("DC Current: %f\n", shared_big_labels_value.a);
-        printf("DC Power: %f\n", shared_big_labels_value.w);
-        printf("DC Energy: %f\n", shared_big_labels_value.wh);
+        // printf("DC Voltage: %f\n", shared_big_labels_value.v);
+        // printf("DC Current: %f\n", shared_big_labels_value.a);
+        // printf("DC Power: %f\n", shared_big_labels_value.w);
+        // printf("DC Energy: %f\n", shared_big_labels_value.wh);
       }
 
       // mutex_enter_blocking(&shared_data_mutex);
@@ -215,21 +237,32 @@ void core1_entry() {
 
   encoder.init();
 
-  connected_wifi = "NaN";
-  wifi_list.push_back("SSID1");
-  wifi_list.push_back("SSID2");
+  // Check initial WiFi connection status
+  if (is_wifi_connected()) {
+    connected_wifi = "Connected";  // We could improve this by gSukses tetting actual SSID
+  } else {
+    connected_wifi = "NaN";
+  }
+
+  // Initialize with empty WiFi list (will be populated when scan is performed)
+  wifi_list.clear();
 
   encoder.set_enable_acceleration(true);
   app.attach_internal_changes_cb(changes_cb);
+
   app.set_connected_wifi(connected_wifi);
-  app.attach_wifi_cb(wifi_cb_dummy);
   app.set_wifi_list(wifi_list);
+  app.attach_wifi_cb(wifi_cb_dummy);
+  app.set_wifi_status(is_wifi_connected());
 
   add_repeating_timer_ms(10, input_service, NULL, &io_service_timer);
   add_repeating_timer_us(100, encoder_service, NULL, &encoder_service_timer);
   add_repeating_timer_ms(1000, one_sec_service, NULL, &one_sec_timer);
 
   while (true) {
+    // Check WiFi scan completion
+    check_wifi_scan_completion();
+
     // mutex_enter_blocking(&shared_data_mutex);
     big_labels_value     = shared_big_labels_value;
     setting_labels_value = shared_setting_labels_value;
@@ -369,19 +402,129 @@ bool encoder_service(struct repeating_timer *t) {
   return true;
 }
 
-void wifi_cb_dummy(EventData *ed) {
+lv_obj_t *wifi_scan_overlay;
+void      wifi_cb_dummy(EventData *ed) {
   printf("WiFi callback\n");
   EventType event_type = ed->event_type;
-  lv_obj_t *overlay;
   switch (event_type) {
+  case PROPAGATE_OVERLAY:
+    if (ed->data.issuer) {
+      wifi_scan_overlay = ed->data.issuer;
+    }
+    break;
   case SCAN_WIFI:
+    printf("Starting WiFi scan...\n");
+    start_wifi_scan();
     break;
   case CONNECT_WIFI:
     WidgetParameterData *data2 = nullptr;
     data2                      = (WidgetParameterData *) ed->data.param;
     char       *ssid           = (char *) data2->param;
     const char *pwd            = lv_textarea_get_text(ed->textarea);
+    printf("Connecting to WiFi: %s\n", ssid);
+
+    // Attempt to connect to WiFi
+    bool is_connected = is_wifi_connected();
+    if (is_wifi_connected()) {
+      cyw43_arch_disable_sta_mode();
+      sleep_ms(500);  // Give some time for the interface to reset
+      cyw43_arch_enable_sta_mode();
+      sleep_ms(500);  // Give some time for the interface to stabilize
+    }
+
+    int result = cyw43_arch_wifi_connect_timeout_ms(ssid, pwd, CYW43_AUTH_WPA2_AES_PSK, 10000);
+    if (result == 0) {
+      connected_wifi = std::string(ssid);
+
+      app.set_connected_wifi(connected_wifi);
+
+      printf("Successfully connected to %s\n", ssid);
+      if (wifi_scan_overlay) {
+        lv_obj_clean(wifi_scan_overlay);
+        lv_obj_del(wifi_scan_overlay);
+        wifi_scan_overlay        = nullptr;
+        lv_obj_t *setting_button = app.get_bottom_grid_buttons().settings;
+        lv_obj_send_event(setting_button, LV_EVENT_CLICKED, nullptr);
+      }
+    } else {
+      printf("Failed to connect to %s (error: %d)\n", ssid, result);
+    }
+
+    app.set_wifi_status(is_wifi_connected());
+    
+    std::string status_msg = "Menghubungkan ke ";
+    status_msg += ssid;
+    status_msg += "\nStatus: ";
+    status_msg += wifi_error_to_string_id(result);
+    app.modal_create_alert(status_msg.c_str());
     break;
+  }
+}
+
+// Helper function to check if WiFi is connected
+bool is_wifi_connected() {
+  return cyw43_tcpip_link_status(&cyw43_state, CYW43_ITF_STA) == CYW43_LINK_UP;
+}
+
+// Helper function to start WiFi scan
+void start_wifi_scan() {
+  if (wifi_scan_in_progress) {
+    printf("WiFi scan already in progress\n");
+    return;
+  }
+
+  // Clear the existing WiFi list
+  wifi_list.clear();
+
+  // Start the WiFi scan
+  cyw43_wifi_scan_options_t scan_options = {0};
+  int                       result       = cyw43_wifi_scan(&cyw43_state, &scan_options, NULL, scan_result);
+
+  if (result == 0) {
+    wifi_scan_in_progress = true;
+    wifi_scan_timeout     = make_timeout_time_ms(10000);  // 10 second timeout
+    printf("WiFi scan started successfully\n");
+  } else {
+    printf("Failed to start WiFi scan (error: %d)\n", result);
+  }
+}
+
+// Helper function to check WiFi scan completion
+void check_wifi_scan_completion() {
+  if (!wifi_scan_in_progress) {
+    return;
+  }
+
+  // Check if scan has completed or timed out
+  if (!cyw43_wifi_scan_active(&cyw43_state) || absolute_time_diff_us(get_absolute_time(), wifi_scan_timeout) <= 0) {
+    wifi_scan_in_progress = false;
+    printf("WiFi scan completed. Found %zu networks\n", wifi_list.size());
+
+    // Check if we're connected to any of the found networks
+    if (is_wifi_connected()) {
+      // Get current connected network info if possible
+      // For now, we'll keep the connected_wifi as is if it's already set
+      if (connected_wifi == "NaN" || connected_wifi.empty()) {
+        connected_wifi = "Connected";  // Fallback if we can't get SSID
+      }
+    } else {
+      if (connected_wifi != "NaN") {
+        connected_wifi = "NaN";
+      }
+    }
+
+    // Update the app with the new WiFi list and connection status
+    app.set_wifi_list(wifi_list);
+    app.set_connected_wifi(connected_wifi);
+    app.set_wifi_status(is_wifi_connected());
+
+    if (wifi_scan_overlay) {
+      lv_obj_clean(wifi_scan_overlay);
+      lv_obj_del(wifi_scan_overlay);
+      wifi_scan_overlay        = nullptr;
+      lv_obj_t *setting_button = app.get_bottom_grid_buttons().settings;
+      lv_obj_send_event(setting_button, LV_EVENT_CLICKED, nullptr);
+    }
   }
 }
 
@@ -421,4 +564,43 @@ void changes_cb(EventData *ed) {
     break;
   }
   // mutex_exit(&shared_data_mutex);
+}
+
+const char *wifi_error_to_string_id(int error_code) {
+  switch (error_code) {
+  case 0:
+    return "Berhasil";
+  case -1:
+    return "Kesalahan umum";
+  case -2:
+    return "Timeout - koneksi gagal dalam waktu yang ditentukan";
+  case -3:
+    return "Password salah atau tidak valid";
+  case -4:
+    return "Jaringan WiFi tidak ditemukan";
+  case -5:
+    return "Kesalahan autentikasi";
+  case -6:
+    return "Kesalahan protokol WiFi";
+  case -7:
+    return "WiFi adapter tidak siap";
+  case -8:
+    return "Koneksi ditolak oleh access point";
+  case -9:
+    return "Sumber daya tidak mencukupi";
+  case -10:
+    return "Operasi tidak didukung";
+  case -11:
+    return "Parameter tidak valid";
+  case -12:
+    return "WiFi belum diinisialisasi";
+  case -13:
+    return "Operasi dibatalkan";
+  case -14:
+    return "Buffer terlalu kecil";
+  case -15:
+    return "Kesalahan hardware";
+  default:
+    return "Kesalahan tidak dikenal";
+  }
 }

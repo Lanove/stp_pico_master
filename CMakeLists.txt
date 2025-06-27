@@ -6,8 +6,8 @@ set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(LV_CONF_PATH
-    ${CMAKE_CURRENT_SOURCE_DIR}/include/lv_conf.h
-    CACHE STRING "" FORCE)
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/lv_conf.h
+  CACHE STRING "" FORCE)
 set(PICO_SDK_PATH "/usr/share/pico-sdk")
 
 # ====================================================================================
@@ -35,17 +35,17 @@ pico_enable_stdio_usb(hmi_pico_stp 1)
 
 # Add the standard library to the build
 target_link_libraries(hmi_pico_stp
-    pico_stdlib       
-    hardware_clocks
-    ili9486_drivers
-    ClickEncoder
-    xpt2046
-    lvgl
-    hardware_uart
-    ModbusMaster
-    rs485_slaves
-    pico_multicore
-    pico_cyw43_arch_none
+  pico_stdlib
+  hardware_clocks
+  ili9486_drivers
+  ClickEncoder
+  xpt2046
+  lvgl
+  hardware_uart
+  ModbusMaster
+  rs485_slaves
+  pico_multicore
+  pico_cyw43_arch_lwip_threadsafe_background
 )
 
 # Add the standard include files to the build

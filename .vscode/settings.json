@@ -138,6 +138,7 @@
         "export": "c",
         "lv_keyboard_private.h": "c",
         "math": "cpp",
-        "stateattribute": "cpp"
+        "stateattribute": "cpp",
+        "arch_poll.h": "c"
     }
 }
