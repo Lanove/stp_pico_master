@@ -433,6 +433,7 @@ void      wifi_cb_dummy(EventData *ed) {
     }
 
     int result = cyw43_arch_wifi_connect_timeout_ms(ssid, pwd, CYW43_AUTH_WPA2_AES_PSK, 10000);
+    app.set_wifi_status(is_wifi_connected());
     if (result == 0) {
       connected_wifi = std::string(ssid);
 
@@ -450,8 +451,6 @@ void      wifi_cb_dummy(EventData *ed) {
       printf("Failed to connect to %s (error: %d)\n", ssid, result);
     }
 
-    app.set_wifi_status(is_wifi_connected());
-    
     std::string status_msg = "Menghubungkan ke ";
     status_msg += ssid;
     status_msg += "\nStatus: ";
