@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include <algorithm>
 #include <string>
@@ -26,6 +27,12 @@
 #include "plc_utility.hpp"
 #include "pzem017.h"
 #include "xpt2046.h"
+
+// lwIP includes for HTTP client
+#include "lwip/tcp.h"
+#include "lwip/dns.h"
+#include "lwip/err.h"
+#include "lwip/pbuf.h"
 
 struct MachineState {
   bool          relay_state[2];
@@ -84,6 +91,23 @@ std::string              connected_wifi;
 static bool            wifi_scan_in_progress = false;
 static absolute_time_t wifi_scan_timeout;
 
+// HTTP client state
+struct http_client_state {
+  struct tcp_pcb *tcp_pcb;
+  ip_addr_t       server_ip;
+  bool            connected;
+  bool            request_sent;
+  bool            response_complete;
+  char           *response_buffer;
+  size_t          response_length;
+  size_t          response_capacity;
+};
+
+static struct http_client_state http_state = {0};
+static bool                     http_request_in_progress = false;
+static absolute_time_t          last_http_request_time;
+static const uint32_t           HTTP_REQUEST_INTERVAL_MS = 3000;  // Send request every 3 seconds
+
 LVGL_App             app;
 Big_Labels_Value     big_labels_value;
 Setting_Labels_Value setting_labels_value;
@@ -104,6 +128,16 @@ const char *wifi_error_to_string_id(int error_code);
 bool is_wifi_connected();
 void start_wifi_scan();
 void check_wifi_scan_completion();
+
+// HTTP client functions
+void http_client_init();
+void http_client_close();
+err_t http_client_connected(void *arg, struct tcp_pcb *tpcb, err_t err);
+err_t http_client_recv(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t err);
+err_t http_client_sent(void *arg, struct tcp_pcb *tpcb, u16_t len);
+void http_client_err(void *arg, err_t err);
+void http_send_request();
+void http_client_process();
 
 template <typename T>
 void apply_min_max(T &value, T min, T max) {
@@ -239,7 +273,7 @@ void core1_entry() {
 
   // Check initial WiFi connection status
   if (is_wifi_connected()) {
-    connected_wifi = "Connected";  // We could improve this by gSukses tetting actual SSID
+    connected_wifi = "Connected";  // We could improve this by getting actual SSID
   } else {
     connected_wifi = "NaN";
   }
@@ -255,6 +289,10 @@ void core1_entry() {
   app.attach_wifi_cb(wifi_cb_dummy);
   app.set_wifi_status(is_wifi_connected());
 
+  // Initialize HTTP client
+  http_client_init();
+  last_http_request_time = get_absolute_time();
+
   add_repeating_timer_ms(10, input_service, NULL, &io_service_timer);
   add_repeating_timer_us(100, encoder_service, NULL, &encoder_service_timer);
   add_repeating_timer_ms(1000, one_sec_service, NULL, &one_sec_timer);
@@ -262,6 +300,9 @@ void core1_entry() {
   while (true) {
     // Check WiFi scan completion
     check_wifi_scan_completion();
+
+    // Process HTTP client when WiFi is connected
+    http_client_process();
 
     // mutex_enter_blocking(&shared_data_mutex);
     big_labels_value     = shared_big_labels_value;
@@ -440,8 +481,19 @@ void      wifi_cb_dummy(EventData *ed) {
       app.set_connected_wifi(connected_wifi);
 
       printf("Successfully connected to %s\n", ssid);
+      
+      // Reset HTTP client state when WiFi connection changes
+      if (http_request_in_progress) {
+        http_client_close();
+      }
+      last_http_request_time = get_absolute_time();
     } else {
       printf("Failed to connect to %s (error: %d)\n", ssid, result);
+      
+      // Close HTTP client if WiFi connection failed
+      if (http_request_in_progress) {
+        http_client_close();
+      }
     }
 
     if (wifi_scan_overlay) {
@@ -602,5 +654,252 @@ const char *wifi_error_to_string_id(int error_code) {
     return "Kesalahan hardware";
   default:
     return "Kesalahan tidak dikenal";
+  }
+}
+
+// HTTP Client Implementation
+void http_client_init() {
+  memset(&http_state, 0, sizeof(http_state));
+  http_state.response_capacity = 1024;  // Initial capacity
+  http_state.response_buffer = (char*)malloc(http_state.response_capacity);
+  if (!http_state.response_buffer) {
+    printf("Failed to allocate HTTP response buffer\n");
+    return;
+  }
+  
+  // Set server IP address (192.168.1.22)
+  IP4_ADDR(&http_state.server_ip, 192, 168, 1, 22);
+  
+  printf("HTTP client initialized\n");
+}
+
+void http_client_close() {
+  if (http_state.tcp_pcb) {
+    tcp_arg(http_state.tcp_pcb, NULL);
+    tcp_sent(http_state.tcp_pcb, NULL);
+    tcp_recv(http_state.tcp_pcb, NULL);
+    tcp_err(http_state.tcp_pcb, NULL);
+    tcp_close(http_state.tcp_pcb);
+    http_state.tcp_pcb = NULL;
+  }
+  
+  if (http_state.response_buffer) {
+    free(http_state.response_buffer);
+    http_state.response_buffer = NULL;
+  }
+  
+  http_state.connected = false;
+  http_state.request_sent = false;
+  http_state.response_complete = false;
+  http_state.response_length = 0;
+  http_request_in_progress = false;
+  
+  printf("HTTP client closed\n");
+}
+
+err_t http_client_connected(void *arg, struct tcp_pcb *tpcb, err_t err) {
+  if (err != ERR_OK) {
+    printf("HTTP connection failed: %d\n", err);
+    http_client_close();
+    return err;
+  }
+  
+  printf("HTTP connected to server\n");
+  http_state.connected = true;
+  
+  // Get current sensor readings
+  float voltage = shared_big_labels_value.v;
+  float current = shared_big_labels_value.a;
+  float power = shared_big_labels_value.w;
+  float energy = shared_big_labels_value.wh;
+  bool is_started = machine_state.started; // Use machine_state.started instead of shared_status_labels_value.started
+  
+  // Create simplified JSON payload - let server handle timestamp and defaults
+  char json_payload[256];
+  snprintf(json_payload, sizeof(json_payload),
+    "{"
+    "\"voltage\":%.2f,"
+    "\"current\":%.2f,"
+    "\"power\":%.2f,"
+    "\"energy\":%.2f,"
+    "\"source\":\"DC\","
+    "\"temperature\":30,"
+    "\"is_started\":%s"
+    "}",
+    voltage, current, power, energy,
+    is_started ? "true" : "false"
+  );
+  
+  // Create HTTP POST request
+  char request[512];
+  snprintf(request, sizeof(request),
+    "POST /api/readings HTTP/1.1\r\n"
+    "Host: 192.168.1.22:5000\r\n"
+    "User-Agent: PicoW-HMI/1.0\r\n"
+    "Content-Type: application/json\r\n"
+    "Content-Length: %d\r\n"
+    "Connection: close\r\n"
+    "\r\n"
+    "%s",
+    (int)strlen(json_payload), json_payload
+  );
+  
+  printf("Sending sensor data: %s\n", json_payload);
+  
+  err_t write_err = tcp_write(tpcb, request, strlen(request), TCP_WRITE_FLAG_COPY);
+  if (write_err == ERR_OK) {
+    tcp_output(tpcb);
+    http_state.request_sent = true;
+    printf("HTTP POST request sent\n");
+  } else {
+    printf("Failed to send HTTP request: %d\n", write_err);
+    http_client_close();
+    return write_err;
+  }
+  
+  return ERR_OK;
+}
+
+err_t http_client_recv(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t err) {
+  if (err != ERR_OK) {
+    printf("HTTP receive error: %d\n", err);
+    if (p) pbuf_free(p);
+    http_client_close();
+    return err;
+  }
+  
+  if (p == NULL) {
+    // Connection closed by server
+    printf("HTTP response complete (connection closed)\n");
+    http_state.response_complete = true;
+    
+    // Process the response (you can add your response processing here)
+    if (http_state.response_length > 0) {
+      printf("HTTP Response received (%zu bytes):\n", http_state.response_length);
+      // Add null terminator for safe string operations
+      if (http_state.response_length < http_state.response_capacity) {
+        http_state.response_buffer[http_state.response_length] = '\0';
+        
+        // Find the start of the HTTP body (after headers)
+        char *body_start = strstr(http_state.response_buffer, "\r\n\r\n");
+        if (body_start) {
+          body_start += 4; // Skip the "\r\n\r\n"
+          printf("Response headers + body:\n%s\n", http_state.response_buffer);
+          printf("Response body only: %s\n", body_start);
+        } else {
+          printf("Response content (full): %s\n", http_state.response_buffer);
+        }
+      } else {
+        printf("Response too large for buffer, truncated at %zu bytes\n", http_state.response_capacity);
+      }
+    }
+    
+    http_client_close();
+    return ERR_OK;
+  }
+  
+  // Receive data
+  size_t data_len = p->tot_len;
+  
+  // Ensure we have enough buffer space
+  if (http_state.response_length + data_len >= http_state.response_capacity) {
+    size_t new_capacity = http_state.response_capacity * 2;
+    while (new_capacity <= http_state.response_length + data_len) {
+      new_capacity *= 2;
+    }
+    
+    char *new_buffer = (char*)realloc(http_state.response_buffer, new_capacity);
+    if (new_buffer) {
+      http_state.response_buffer = new_buffer;
+      http_state.response_capacity = new_capacity;
+    } else {
+      printf("Failed to expand HTTP response buffer\n");
+      pbuf_free(p);
+      http_client_close();
+      return ERR_MEM;
+    }
+  }
+  
+  // Copy data to buffer
+  pbuf_copy_partial(p, http_state.response_buffer + http_state.response_length, data_len, 0);
+  http_state.response_length += data_len;
+  
+  // Acknowledge received data
+  tcp_recved(tpcb, p->tot_len);
+  pbuf_free(p);
+  
+  printf("HTTP data received: %u bytes (total: %zu)\n", data_len, http_state.response_length);
+  
+  return ERR_OK;
+}
+
+err_t http_client_sent(void *arg, struct tcp_pcb *tpcb, u16_t len) {
+  printf("HTTP data sent: %u bytes\n", len);
+  return ERR_OK;
+}
+
+void http_client_err(void *arg, err_t err) {
+  printf("HTTP client error: %d\n", err);
+  http_client_close();
+}
+
+void http_send_request() {
+  if (http_request_in_progress) {
+    printf("HTTP request already in progress\n");
+    return;
+  }
+  
+  if (!is_wifi_connected()) {
+    printf("Cannot send HTTP request: WiFi not connected\n");
+    return;
+  }
+  
+  printf("Starting HTTP request to 192.168.1.22:5000\n");
+  
+  // Create new TCP PCB
+  http_state.tcp_pcb = tcp_new();
+  if (!http_state.tcp_pcb) {
+    printf("Failed to create TCP PCB for HTTP request\n");
+    return;
+  }
+  
+  // Reset response state
+  http_state.response_length = 0;
+  http_state.connected = false;
+  http_state.request_sent = false;
+  http_state.response_complete = false;
+  http_request_in_progress = true;
+  
+  // Set up TCP callbacks
+  tcp_arg(http_state.tcp_pcb, &http_state);
+  tcp_sent(http_state.tcp_pcb, http_client_sent);
+  tcp_recv(http_state.tcp_pcb, http_client_recv);
+  tcp_err(http_state.tcp_pcb, http_client_err);
+  
+  // Connect to server (port 5000)
+  err_t err = tcp_connect(http_state.tcp_pcb, &http_state.server_ip, 5000, http_client_connected);
+  if (err != ERR_OK) {
+    printf("Failed to start HTTP connection: %d\n", err);
+    http_client_close();
+  }
+}
+
+void http_client_process() {
+  if (!is_wifi_connected()) {
+    // If WiFi is disconnected, clean up any ongoing HTTP operations
+    if (http_request_in_progress) {
+      printf("WiFi disconnected, closing HTTP client\n");
+      http_client_close();
+    }
+    return;
+  }
+  
+  // Check if it's time to send a new request
+  if (!http_request_in_progress) {
+    absolute_time_t current_time = get_absolute_time();
+    if (absolute_time_diff_us(last_http_request_time, current_time) >= (HTTP_REQUEST_INTERVAL_MS * 1000)) {
+      http_send_request();
+      last_http_request_time = current_time;
+    }
   }
 }
