@@ -8,10 +8,10 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(LV_CONF_PATH
     ${CMAKE_CURRENT_SOURCE_DIR}/include/lv_conf.h
     CACHE STRING "" FORCE)
-set(PICO_SDK_PATH "/home/kohigashi/git/pico-sdk")
+set(PICO_SDK_PATH "/usr/share/pico-sdk")
 
 # ====================================================================================
-set(PICO_BOARD pico CACHE STRING "Board type")
+set(PICO_BOARD pico_w CACHE STRING "Board type")
 
 # Pull in Raspberry Pi Pico SDK (must be before project)
 include(pico_sdk_import.cmake)
@@ -45,6 +45,7 @@ target_link_libraries(hmi_pico_stp
     ModbusMaster
     rs485_slaves
     pico_multicore
+    pico_cyw43_arch_none
 )
 
 # Add the standard include files to the build

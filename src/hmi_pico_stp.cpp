@@ -10,25 +10,26 @@
 #include "hardware/structs/clocks.h"
 #include "hardware/structs/pll.h"
 #include "hardware/structs/rosc.h"
+#include "hardware/vreg.h"
 #include "ili9486_drivers.h"
 #include "lv_app.h"
 #include "lv_drivers.h"
 #include "math.h"
 #include "modbus_master.h"
+#include "pico/cyw43_arch.h"
 #include "pico/multicore.h"
 #include "pico/stdlib.h"
 #include "pico/sync.h"
 #include "pico/time.h"
 #include "plc_utility.hpp"
-#include "pzem016.h"
 #include "pzem017.h"
 #include "xpt2046.h"
 
 struct MachineState {
-  uint16_t      relay_state[2];
+  bool          relay_state[2];
   bool          started;
-  Sensed_Source sensed_source;
-  bool          polarity_flipped;
+  Sensed_Source sensed_source    = Source_DC;
+  bool          polarity_flipped = false;
 };
 
 static repeating_timer one_sec_timer;
@@ -42,6 +43,8 @@ uint8_t                pin_start  = 21;
 uint8_t                pin_stop   = 22;
 uint8_t                pin_dc     = 20;
 uint8_t                pin_ac     = 19;
+uint8_t                pin_relay0 = 2;
+uint8_t                pin_relay1 = 4;
 Differential_Up        stop;
 Differential_Down      start;
 static repeating_timer io_service_timer;
@@ -63,11 +66,8 @@ uint32_t      modbus_stop_bits = 2;
 uart_parity_t modbus_parity    = UART_PARITY_NONE;
 ModbusMaster  mbm = ModbusMaster(modbus_de_re, modbus_rx, modbus_tx, modbus_uart, modbus_baudrate, modbus_data_bits, modbus_stop_bits, modbus_parity);
 
-PZEM016                pzem016 = PZEM016(mbm, 0x02);
-PZEM017                pzem017 = PZEM017(mbm, 0x02);
-ESP32                  esp32   = ESP32(mbm, 0x03);
+PZEM017                pzem017 = PZEM017(mbm, 0xF8);
 PZEM017::measurement_t pzem017_measurement;
-PZEM016::measurement_t pzem016_measurement;
 
 // Following variabbles are shared between the two cores
 Big_Labels_Value     shared_big_labels_value;
@@ -101,8 +101,17 @@ void apply_min_max(T &value, T min, T max) {
     value = max;
 }
 
+static int scan_result(void *env, const cyw43_ev_scan_result_t *result) {
+  if (result) {
+    printf("ssid: %-32s rssi: %4d chan: %3d mac: %02x:%02x:%02x:%02x:%02x:%02x sec: %u\n", result->ssid, result->rssi, result->channel,
+           result->bssid[0], result->bssid[1], result->bssid[2], result->bssid[3], result->bssid[4], result->bssid[5], result->auth_mode);
+  }
+  return 0;
+}
+
 int main() {
   stdio_init_all();
+
   sleep_ms(2000);
 
   if (!set_sys_clock_khz(processor_mhz * 1000, false))
@@ -113,6 +122,13 @@ int main() {
   clock_configure(clk_peri, 0, CLOCKS_CLK_PERI_CTRL_AUXSRC_VALUE_CLK_SYS, processor_mhz * 1000 * 1000, processor_mhz * 1000 * 1000);
 
   mutex_init(&shared_data_mutex);
+
+  if (cyw43_arch_init()) {
+    printf("failed to initialise\n");
+    return 1;
+  }
+
+  cyw43_arch_enable_sta_mode();
 
   multicore_launch_core1(core1_entry);
 
@@ -127,14 +143,17 @@ void core0_entry() {
   gpio_init(pin_stop);
   gpio_init(pin_ac);
   gpio_init(pin_dc);
+  gpio_init(pin_relay0);
+  gpio_init(pin_relay1);
 
   gpio_set_dir(pin_buzzer, GPIO_OUT);
+  gpio_set_dir(pin_relay0, GPIO_OUT);
+  gpio_set_dir(pin_relay1, GPIO_OUT);
   gpio_set_dir(pin_start, GPIO_IN);
   gpio_set_dir(pin_stop, GPIO_IN);
   gpio_set_dir(pin_ac, GPIO_IN);
   gpio_set_dir(pin_dc, GPIO_IN);
   PZEM017::status_t pzem017_status;
-  PZEM016::status_t pzem016_status;
   ESP32::status_t   esp_status;
   float             temperature;
 
@@ -145,108 +164,42 @@ void core0_entry() {
     int setpoint_idx = static_cast<int>(shared_setting_labels_value.setpoint / 5);
     sample_pulse.service();
     sample_up.CLK(sample_pulse.Q());
+
     if (machine_state.started) {
-      machine_state.relay_state[0] = (setpoint_idx < 12) ? ((1 << setpoint_idx) - 1) : 0xFFF;
-      machine_state.relay_state[1] = (setpoint_idx < 12) ? 0 : ((1 << (setpoint_idx - 12)) - 1);
-      printf("setpoint_idx: %d\n", setpoint_idx);
-      printf("relay_state[0]: %d\n", machine_state.relay_state[0]);
-      printf("relay_state[1]: %d\n", machine_state.relay_state[1]);
+      int resistance_idx = (int) setting_labels_value.setpoint / 50.;
+      if (resistance_idx > 0)
+        gpio_put(pin_relay0, 0);
+      if (resistance_idx > 1)
+        gpio_put(pin_relay1, 0);
     } else {
-      machine_state.relay_state[0] = 0;
-      machine_state.relay_state[1] = 0;
+      gpio_put(pin_relay0, 1);
+      gpio_put(pin_relay1, 1);
     }
 
     if (sample_up.Q()) {
-      if (machine_state.sensed_source == Source_DC) {
-        mbm.change_stop_bits(2);
-        if (reset_pzem) {
-          pzem017_status = pzem017.reset_energy();
-          reset_pzem     = false;
-          if (pzem017_status != PZEM017::No_Error)
-            printf("Reset Energy PZEM017 Error: %s\n", pzem017.error_to_string(pzem017_status));
-          shared_big_labels_value.wh = 0;
-        }
-
-        pzem017_status = pzem017.request_all(pzem017_measurement);
-        if (pzem017_status != PZEM017::No_Error) {
-          printf("PZEM017 Error: %s\n", pzem017.error_to_string(pzem017_status));
-        } else {
-          shared_big_labels_value.v = pzem017_measurement.voltage;
-
-          if (machine_state.started) {
-            double                 current_resistance = resistance_map[setpoint_idx];
-            static absolute_time_t last_time          = get_absolute_time();
-            absolute_time_t        current_time       = get_absolute_time();
-
-            shared_big_labels_value.a = pzem017_measurement.voltage / current_resistance;
-            shared_big_labels_value.w = shared_big_labels_value.v * shared_big_labels_value.a;
-
-            // Calculate delta time in hours
-            double delta_time_us    = absolute_time_diff_us(last_time, current_time);
-            double delta_time_hours = delta_time_us / (3600.0 * 1000000.0);
-
-            // Integrate watt-hours
-            shared_big_labels_value.wh += shared_big_labels_value.w * delta_time_hours;
-
-            last_time = current_time;
-          }else{
-            shared_big_labels_value.a = 0;
-            shared_big_labels_value.w = 0;
-          }
-
-          printf("DC Voltage: %f\n", shared_big_labels_value.v);
-          printf("DC Current: %f\n", shared_big_labels_value.a);
-          printf("DC Power: %f\n", shared_big_labels_value.w);
-          printf("DC Energy: %f\n", shared_big_labels_value.wh);
-
-          // shared_big_labels_value.a  = pzem017_measurement.current;
-          // shared_big_labels_value.w  = pzem017_measurement.power;
-          // shared_big_labels_value.wh = pzem017_measurement.energy;
-        }
-      } else if (machine_state.sensed_source == Source_AC) {
-        mbm.change_stop_bits(1);
-
-        if (reset_pzem) {
-          pzem016_status = pzem016.reset_energy();
-          reset_pzem     = false;
-          if (pzem016_status != PZEM016::No_Error)
-            printf("Reset Energy PZEM016 Error: %s\n", pzem016.error_to_string(pzem016_status));
-          shared_big_labels_value.wh = 0;
-        }
-        pzem016_status = pzem016.request_all(pzem016_measurement);
-        if (pzem016_status != PZEM016::No_Error) {
-          printf("PZEM016 Error: %s\n", pzem016.error_to_string(pzem016_status));
-        } else {
-          printf("AC Voltage: %f\n", pzem016_measurement.voltage);
-          printf("AC Current: %f\n", pzem016_measurement.current);
-          printf("AC Power: %f\n", pzem016_measurement.power);
-          printf("AC Energy: %f\n", pzem016_measurement.energy);
-
-          shared_big_labels_value.v  = pzem016_measurement.voltage;
-          shared_big_labels_value.a  = pzem016_measurement.current;
-          shared_big_labels_value.w  = pzem016_measurement.power;
-          shared_big_labels_value.wh = pzem016_measurement.energy;
-        }
-      } else {
-        shared_big_labels_value.v  = 0;
-        shared_big_labels_value.a  = 0;
-        shared_big_labels_value.w  = 0;
+      mbm.change_stop_bits(2);
+      if (reset_pzem) {
+        pzem017_status = pzem017.reset_energy();
+        reset_pzem     = false;
+        if (pzem017_status != PZEM017::No_Error)
+          printf("Reset Energy PZEM017 Error: %s\n", pzem017.error_to_string(pzem017_status));
         shared_big_labels_value.wh = 0;
       }
 
-      mbm.change_stop_bits(2);
-      esp_status = esp32.set_relay_state(machine_state.relay_state[0], 0);
-      if (esp_status != ESP32::No_Error)
-        printf("ESP32 Error: %s\n", esp32.error_to_string(esp_status));
-      esp_status = esp32.set_relay_state(machine_state.relay_state[1], 1);
-      if (esp_status != ESP32::No_Error)
-        printf("ESP32 Error: %s\n", esp32.error_to_string(esp_status));
-      esp_status = esp32.request_temperature(temperature);
-      if (esp_status != ESP32::No_Error)
-        printf("ESP32 Error: %s\n", esp32.error_to_string(esp_status));
-      esp_status = esp32.request_sensed_source((Sensed_Source &) machine_state.sensed_source);
-      if (esp_status != ESP32::No_Error)
-        printf("ESP32 Error: %s\n", esp32.error_to_string(esp_status));
+      pzem017_status = pzem017.request_all(pzem017_measurement);
+      if (pzem017_status != PZEM017::No_Error) {
+        printf("PZEM017 Error: %s\n", pzem017.error_to_string(pzem017_status));
+      } else {
+        shared_big_labels_value.v  = pzem017_measurement.voltage;
+        shared_big_labels_value.a  = pzem017_measurement.current;
+        shared_big_labels_value.w  = pzem017_measurement.power;
+        shared_big_labels_value.wh = pzem017_measurement.energy;
+
+        printf("DC Voltage: %f\n", shared_big_labels_value.v);
+        printf("DC Current: %f\n", shared_big_labels_value.a);
+        printf("DC Power: %f\n", shared_big_labels_value.w);
+        printf("DC Energy: %f\n", shared_big_labels_value.wh);
+      }
 
       // mutex_enter_blocking(&shared_data_mutex);
       shared_status_labels_value.temp = temperature;
@@ -351,6 +304,8 @@ bool input_service(struct repeating_timer *t) {
                                "Sumber daya tidak sesuai", bs_warning);
     } else if (shared_big_labels_value.v == 0) {
       app.modal_create_alert("Tegangan belum terdeteksi, silahkan cek koneksi tegangan");
+    } else if (shared_big_labels_value.v >= 110) {
+      app.modal_create_alert("Tegangan terdeteksi terlalu tinggi, tidak bisa memulai load bank");
     } else {
       start_cb();
     }
@@ -374,7 +329,6 @@ bool encoder_service(struct repeating_timer *t) {
   static int undivided_encoder_value = 0;
   static int encoder_delta           = 0;
 
-  // mutex_enter_blocking(&shared_data_mutex);
   undivided_encoder_value += encoder.get_value();
   encoder_value                                     = undivided_encoder_value / 4;
   ClickEncoder::Button b                            = encoder.get_button();
@@ -383,7 +337,7 @@ bool encoder_service(struct repeating_timer *t) {
   switch (highlighted_setting) {
   case Setpoint:
     encoder.set_enable_acceleration(false);
-    shared_setting_labels_value.setpoint += encoder_delta * 5.0;
+    shared_setting_labels_value.setpoint += encoder_delta * 50.0;
     apply_min_max<float>(shared_setting_labels_value.setpoint, 0.0, 100.0);
     break;
   case Timer:
@@ -449,7 +403,12 @@ void changes_cb(EventData *ed) {
   case PROPAGATE_SETPOINT:
     data = atof(txt);
     apply_min_max<double>(data, 0.0, 101.0);
-    data                                 = round((data + 1.0) / 5.0) * 5.0;
+    if (data < 25.0)
+      data = 0.0;
+    else if (data < 75.0)
+      data = 50.0;
+    else
+      data = 100.0;
     shared_setting_labels_value.setpoint = data;
     break;
   case PROPAGATE_TIMER:
