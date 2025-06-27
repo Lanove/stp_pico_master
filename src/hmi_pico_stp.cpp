@@ -440,15 +440,16 @@ void      wifi_cb_dummy(EventData *ed) {
       app.set_connected_wifi(connected_wifi);
 
       printf("Successfully connected to %s\n", ssid);
-      if (wifi_scan_overlay) {
-        lv_obj_clean(wifi_scan_overlay);
-        lv_obj_del(wifi_scan_overlay);
-        wifi_scan_overlay        = nullptr;
-        lv_obj_t *setting_button = app.get_bottom_grid_buttons().settings;
-        lv_obj_send_event(setting_button, LV_EVENT_CLICKED, nullptr);
-      }
     } else {
       printf("Failed to connect to %s (error: %d)\n", ssid, result);
+    }
+
+    if (wifi_scan_overlay) {
+      lv_obj_clean(wifi_scan_overlay);
+      lv_obj_del(wifi_scan_overlay);
+      wifi_scan_overlay        = nullptr;
+      lv_obj_t *setting_button = app.get_bottom_grid_buttons().settings;
+      lv_obj_send_event(setting_button, LV_EVENT_CLICKED, nullptr);
     }
 
     std::string status_msg = "Menghubungkan ke ";
